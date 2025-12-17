@@ -1,4 +1,4 @@
-// src/server.js
+// Me sirve para iniciar el servidor backend
 require('dotenv').config();
 const app = require('./app');
 

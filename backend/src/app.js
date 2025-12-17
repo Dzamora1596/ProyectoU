@@ -1,7 +1,6 @@
-// backend/src/app.js
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config(); // Para leer el archivo .env
+require('dotenv').config(); // Me sirve para leer el archivo .env
 
 const db = require('./config/db');
 const errorHandler = require('./middlewares/errorHandler');
@@ -13,12 +12,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ----------- RUTA RAÍZ (http://localhost:4000/) -----------
+//  Ruta para confirmar la raíz(http://localhost:4000/) 
 app.get('/', (req, res) => {
   res.send('Sistema Planilla cargando');
 });
 
-// ----------- RUTA PARA PROBAR VARIABLES DEL .env -----------
+// Rutas que me ayudan a verificar .env y la conexión con la BD
 app.get('/api/test-env', (req, res) => {
   res.json({
     DB_HOST: process.env.DB_HOST,
@@ -29,7 +28,7 @@ app.get('/api/test-env', (req, res) => {
   });
 });
 
-// ----------- RUTA PARA PROBAR CONEXIÓN CON LA BD -----------
+// Ruta para probar mi conexion con la  BD 
 app.get('/api/test-db', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT 1 AS resultado');
@@ -48,10 +47,10 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
-// ----------- RUTAS  API -----------
+// Ruta del Api Empleados
 app.use('/api/empleados', empleadoRoutes);
 
-// ----------- MIDDLEWARE DE ERRORES -----------
+// MIDDLEWARE que me ayuda a ver errores 
 app.use(errorHandler);
 
 module.exports = app;

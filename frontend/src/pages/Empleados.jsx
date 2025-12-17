@@ -1,7 +1,7 @@
-
+//me sirve para mostrar la página de empleados en el frontend
 import { useEffect, useState } from 'react';
 import { obtenerEmpleados } from '../services/empleadoService';
-
+// Funcion para la página de empleados
 function Empleados() {
   const [empleados, setEmpleados] = useState([]);
   const [error, setError] = useState(null);

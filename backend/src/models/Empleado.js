@@ -1,4 +1,4 @@
-// backend/src/models/Empleado.js
+//Me sirve para manejar las consultas a la tabla Empleado
 const db = require('../config/db');
 
 const Empleado = {

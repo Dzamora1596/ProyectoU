@@ -1,6 +1,6 @@
-// backend/src/controllers/empleadoController.js
+//Me sirve para manejar las rutas relacionadas con empleados
 const Empleado = require('../models/Empleado');
-
+// Controlador para manejar las rutas de empleados
 const empleadoController = {
   async listar(req, res, next) {
     try {

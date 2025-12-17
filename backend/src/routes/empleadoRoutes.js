@@ -1,13 +1,12 @@
-// backend/src/routes/empleadoRoutes.js
 const express = require('express');
 const empleadoController = require('../controllers/empleadoController');
 
 const router = express.Router();
 
-// GET /api/empleados
+// GET /empleados
 router.get('/', empleadoController.listar);
 
-// GET /api/empleados/1
+// GET /empleados en posicion 1
 router.get('/:id', empleadoController.obtenerPorId);
 
 module.exports = router;

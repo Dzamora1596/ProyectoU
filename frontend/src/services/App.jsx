@@ -1,3 +1,4 @@
+//Me sirve para renderizar la tabla de empleados
 import EmpleadoTable from "./components/empleados/EmpleadoTable";
 
 function App() {
