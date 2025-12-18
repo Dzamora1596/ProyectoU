@@ -50,6 +50,9 @@ app.get('/api/test-db', async (req, res) => {
 // Ruta del Api Empleados
 app.use('/api/empleados', empleadoRoutes);
 
+app.use('/api/autenticador', require('./routes/autenticadorRoutes'));
+
+
 // MIDDLEWARE que me ayuda a ver errores 
 app.use(errorHandler);
 
