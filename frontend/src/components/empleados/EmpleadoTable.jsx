@@ -1,4 +1,4 @@
-//me sirve para mostrar la tabla de empleados en el frontend
+//Muestra la tabla de empleados en el frontend
 import { useEffect, useState } from "react";
 import { obtenerEmpleados } from "../../services/empleadoService";
 // Constante para mostrar la tabla de empleados

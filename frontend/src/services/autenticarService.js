@@ -1,13 +1,19 @@
-export async function loginRequest(usuario, password) {
-  const res = await fetch('http://localhost:4000/api/autenticar/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario, password }),
+//Autenticación de usuarios en la aplicación React mediante llamadas a la API backend
+import axios from 'axios';
+
+const API = 'http://localhost:4000/api/autenticar';
+
+export async function login(usuario, password) {
+  const res = await axios.post(`${API}/login`, { usuario, password });
+  return res.data;
+}
+
+export async function registrarUsuario({ idUsuario, empleadoId, nombreUsuario, password }) {
+  const res = await axios.post(`${API}/registrar`, {
+    idUsuario,
+    empleadoId,
+    nombreUsuario,
+    password,
   });
-
-  if (!res.ok) {
-    throw new Error('Login incorrecto');
-  }
-
-  return res.json();
+  return res.data;
 }

@@ -1,4 +1,4 @@
-//Me sirve para autenticar las solicitudes usando JWT y JWT es una librería para manejar tokens
+//Autenticación de las solicitudes usando JWT y JWT es una librería para manejar tokens
 const jwt = require('jsonwebtoken');
 
 module.exports = (req, res, next) => {

@@ -1,4 +1,4 @@
-//Me sirve para hacer las llamadas a la API de empleados
+//Llama a la API de empleados
 import axios from 'axios';
 
 const API_URL = 'http://localhost:4000/api/empleados';

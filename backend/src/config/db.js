@@ -1,4 +1,4 @@
-//Me sirve para configurar la conexión a la base de datos MySQL
+//Configuración de la conexión a la base de datos MySQL
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 

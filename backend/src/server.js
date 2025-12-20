@@ -1,4 +1,4 @@
-// Me sirve para iniciar el servidor backend
+// Inicia el servidor backend
 require('dotenv').config();
 const app = require('./app');
 

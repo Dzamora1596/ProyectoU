@@ -1,3 +1,4 @@
+//Configuaración del servidor express, las rutas y los middlewares globales para la aplicacion.
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();

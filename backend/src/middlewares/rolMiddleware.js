@@ -1,4 +1,4 @@
-//Me sirve para manejar la autorización segun los roles
+//Manejo de autorización según los roles
 module.exports = (rolesPermitidos) => {
   return (req, res, next) => {
     if (!rolesPermitidos.includes(req.usuario.rol)) {

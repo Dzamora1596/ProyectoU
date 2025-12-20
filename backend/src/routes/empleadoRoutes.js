@@ -1,3 +1,4 @@
+//Definicion de rutas para empleados.
 const express = require('express');
 const empleadoController = require('../controllers/empleadoController');
 const autenticar = require('../middlewares/autenticarMiddleware');

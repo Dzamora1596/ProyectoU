@@ -1,4 +1,4 @@
-//Me sirve para manejar las consultas a la tabla Empleado
+//Manejo de consultas para a la tabla Empleado
 const db = require('../config/db');
 
 const Empleado = {
