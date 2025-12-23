@@ -1,6 +1,6 @@
-//Manejo de las rutas relacionadas con empleados
+//Para el manejo de empleados
 const Empleado = require('../models/Empleado');
-// Controlador para manejar las rutas de empleados
+// Para el manejo de empleados
 const empleadoController = {
   async listar(req, res, next) {
     try {
@@ -10,7 +10,7 @@ const empleadoController = {
       next(error);
     }
   },
-
+// Obtener un empleado por ID
   async obtenerPorId(req, res, next) {
     try {
       const { id } = req.params;

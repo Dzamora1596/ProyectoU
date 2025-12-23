@@ -1,25 +1,16 @@
-// Gestión de rutas y autenticación en la aplicación React
+//Archivo principal de la aplicación con rutas protegidas
 import { useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "./pages/Login";
+import Inicio from "./pages/Inicio";
 import RegistroUsuarios from "./pages/RegistroUsuarios";
 import EmpleadoTable from "./components/empleados/EmpleadoTable";
 
-// Solo permite el acceso si el usuario está autenticado
+// Para rutas privadas que siven de protección de accesos
 function RutaPrivada({ user, children }) {
   if (!user) return <Navigate to="/login" replace />;
   return children;
-}
-
-// Pantalla de inicio después del login exitoso temporal
-function Inicio() {
-  return (
-    <div>
-      <h1>Inicio</h1>
-      <p>Bienvenido al sistema.</p>
-    </div>
-  );
 }
 
 export default function App() {
@@ -29,50 +20,46 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Login */}
+      {/*Raíz */}// Redirige según si hay usuario o no
       <Route
         path="/"
-        element={
-          user ? (
-            <Navigate to="/inicio" replace />
-          ) : (
-            <Login onLogin={(u) => setUser(u)} />
-          )
-        }
+        element={user ? <Navigate to="/inicio" replace /> : <Navigate to="/login" replace />}
       />
 
-      {/*También soporta /login */}
+      {/*Login */}
       <Route
         path="/login"
         element={
-          user ? (
-            <Navigate to="/inicio" replace />
-          ) : (
-            <Login onLogin={(u) => setUser(u)} />
-          )
+          user ? <Navigate to="/inicio" replace /> : <Login onLogin={(u) => setUser(u)} />
         }
       />
 
-
-      {/*Inicio protegido */}
+      {/*Inicio */}
       <Route
         path="/inicio"
         element={
           <RutaPrivada user={user}>
-            <div>
-              <button onClick={logout}>Cerrar sesión</button>
-              <Inicio />
-            </div>
+            <Inicio user={user} onLogout={logout} />
           </RutaPrivada>
         }
       />
 
-      {/* Protege a los empleados */}
+      {/*Registro */}
+      <Route
+        path="/registro"
+        element={
+          <RutaPrivada user={user}>
+            <RegistroUsuarios />
+          </RutaPrivada>
+        }
+      />
+
+      {/*Empleados */}
       <Route
         path="/empleados"
         element={
           <RutaPrivada user={user}>
-            <div>
+            <div style={{ padding: 20 }}>
               <h1>Sistema de Planilla</h1>
               <button onClick={logout}>Cerrar sesión</button>
               <EmpleadoTable />
@@ -81,7 +68,7 @@ export default function App() {
         }
       />
 
-      {/* Ruta desconocida manda a / */}
+      {/*Cualquier otra ruta */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

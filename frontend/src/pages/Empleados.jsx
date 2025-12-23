@@ -16,7 +16,7 @@ function Empleados() {
         setError('Error al cargar empleados');
       }
     };
-
+// Llama a la función para cargar empleados al montar el componente
     cargarEmpleados();
   }, []);
 

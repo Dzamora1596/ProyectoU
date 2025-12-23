@@ -1,50 +1,56 @@
-//Login de usuarios en la aplicación React
-import { useState } from 'react';
-import axios from 'axios';
-
-const Login = ({ onLogin }) => {
-  const [usuario, setUsuario] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+//Archivo para la página de login
+import { useState } from "react";
+import { login as loginService } from "../services/autenticarService";
+import "../styles/autenticar.css";
+// Componente de Login
+export default function Login({ onLogin }) {
+  const [usuario, setUsuario] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErr("");
 
     try {
-      const res = await axios.post('http://localhost:4000/api/autenticar/login', {
-        usuario,
-        password,
-      });
-
-      onLogin(res.data.usuario);
-    } catch (err) {
-      setError(err.response?.data?.mensaje || 'Error al iniciar sesión');
+      const data = await loginService({ usuario, password });
+      // data.usuario debe venir del backend
+      onLogin(data.usuario);
+    } catch (e2) {
+      setErr(e2.response?.data?.mensaje || "Error al iniciar sesión");
     }
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Iniciar sesión</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2>Iniciar sesión</h2>
+        <p className="auth-subtitle">Accede al sistema de planilla.</p>
 
-      <input
-        type="text"
-        placeholder="Usuario"
-        value={usuario}
-        onChange={(e) => setUsuario(e.target.value)}
-      />
+        <form onSubmit={handleSubmit} className="auth-form">
+          <label>Usuario</label>
+          <input
+            type="text"
+            value={usuario}
+            onChange={(e) => setUsuario(e.target.value)}
+            placeholder="Usuario"
+          />
 
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+          <label>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+          />
 
-      <button type="submit">Ingresar</button>
+          <button type="submit" className="auth-btn-primary">
+            Ingresar
+          </button>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-    </form>
+          {err && <p className="auth-error">{err}</p>}
+        </form>
+      </div>
+    </div>
   );
-};
-
-export default Login;
+}

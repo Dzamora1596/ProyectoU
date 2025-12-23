@@ -1,9 +1,20 @@
-//Definición de las rutas relacionadas con la autenticacion de usuarios.
-const express = require('express');
+// Para las rutas de autenticación
+const express = require("express");
 const router = express.Router();
-const autenticarController = require('../controllers/autenticarController');
 
-router.post('/login', autenticarController.login);
-router.post('/registrar', autenticarController.registrar);
+const {
+  login,
+  registrar,
+  obtenerRoles,
+} = require("../controllers/autenticarController");
+
+// POST login
+router.post("/login", login);
+
+// POST registrar nuevo usuario
+router.post("/registrar", registrar);
+
+// GET roles disponibles
+router.get("/roles", obtenerRoles);
 
 module.exports = router;
