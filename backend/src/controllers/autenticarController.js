@@ -1,4 +1,4 @@
-// Archivo para el controlador de autenticación
+// Codigo para el controlador de autenticación de usuarios
 const db = require("../config/db");
 const bcrypt = require("bcryptjs");
 
@@ -14,7 +14,7 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Para obtener el usuario
+    // Obtener el usuario
     const sql = `
       SELECT 
         u.idUsuario,
@@ -37,7 +37,7 @@ const login = async (req, res, next) => {
 
     const user = rows[0];
 
-    // Para validar si el usuario está activo
+    // Validar si el usuario está activo
     const activo = Buffer.isBuffer(user.Activo) ? user.Activo[0] === 1 : Boolean(user.Activo);
 
     if (!activo) {
@@ -62,7 +62,7 @@ const login = async (req, res, next) => {
       return res.status(401).json({ ok: false, mensaje: "Credenciales inválidas" });
     }
 
-    // Aqui devuelvo el rolId y rolNombre para que el frontend pueda mostrar botones
+    //Devuelve el rolId y rolNombre para que el frontend pueda mostrar botones
     return res.json({
       ok: true,
       mensaje: "Login exitoso",
@@ -78,7 +78,7 @@ const login = async (req, res, next) => {
   }
 };
 
-// Para registrar un nuevo usuario
+// Registrar un nuevo usuario
 const registrar = async (req, res, next) => {
   try {
     const { empleadoId, nombreUsuario, password, rolId } = req.body;
@@ -90,7 +90,7 @@ const registrar = async (req, res, next) => {
       });
     }
 
-    // Para validar que el empleadoId exista
+    // Validar que el empleadoId exista
     const [emp] = await db.query(
       `SELECT idEmpleado FROM Empleado WHERE idEmpleado = ?`,
       [empleadoId]
@@ -100,7 +100,7 @@ const registrar = async (req, res, next) => {
       return res.status(400).json({ ok: false, mensaje: "Empleado no existe" });
     }
 
-    // Para validar que el nombre de usuario no exista
+    // Validar que el nombre de usuario no exista
     const [existe] = await db.query(
       `SELECT idUsuario FROM Usuario WHERE NombreUsuario = ?`,
       [nombreUsuario]
@@ -110,7 +110,7 @@ const registrar = async (req, res, next) => {
       return res.status(409).json({ ok: false, mensaje: "El nombre de usuario ya existe" });
     }
 
-    //Para validar que el rolId exista y esté activo
+    // Validar que el rolId exista y esté activo
     const [rol] = await db.query(
       `SELECT idRol FROM Rol WHERE idRol = ? AND Activo = b'1'`,
       [rolId]
@@ -120,10 +120,10 @@ const registrar = async (req, res, next) => {
       return res.status(400).json({ ok: false, mensaje: "Rol inválido o inactivo" });
     }
 
-    //Para hashear el password una forma de encriptarlo
+    // Encriptar  password
     const hash = await bcrypt.hash(String(password).trim(), 10);
 
-    // Para insertar  nuevo usuario
+    // Insertar  nuevo usuario
     const insertSql = `
       INSERT INTO Usuario (NombreUsuario, Password, Empleado_idEmpleado, Rol_idRol, Activo)
       VALUES (?, ?, ?, ?, b'1')
@@ -139,14 +139,14 @@ const registrar = async (req, res, next) => {
     return res.status(201).json({
       ok: true,
       mensaje: "Usuario creado correctamente",
-      idUsuario: result.insertId, // ✅ el nuevo id generado
+      idUsuario: result.insertId, 
     });
   } catch (error) {
     next(error);
   }
 };
 
-// Para obtener los roles disponibles
+// Obtener los roles disponibles
 const obtenerRoles = async (req, res, next) => {
   try {
     const [rows] = await db.query(

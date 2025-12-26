@@ -1,13 +1,15 @@
-//Archivo principal de la aplicación con rutas protegidas
+//Codigo principal de la aplicación con rutas protegidas
 import { useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
+import RegistrarPersona from "./pages/RegistrarPersona";
 import Login from "./pages/Login";
 import Inicio from "./pages/Inicio";
 import RegistroUsuarios from "./pages/RegistroUsuarios";
-import EmpleadoTable from "./components/empleados/EmpleadoTable";
+import RegistrarEmpleados from "./pages/RegistrarEmpleados";
+import ValidarAsistencias from "./pages/ValidarAsistencias";
 
-// Para rutas privadas que siven de protección de accesos
+// Ruta privada
 function RutaPrivada({ user, children }) {
   if (!user) return <Navigate to="/login" replace />;
   return children;
@@ -20,18 +22,16 @@ export default function App() {
 
   return (
     <Routes>
-      {/*Raíz */}// Redirige según si hay usuario o no
+      {/*Raíz */}
       <Route
         path="/"
         element={user ? <Navigate to="/inicio" replace /> : <Navigate to="/login" replace />}
       />
 
-      {/*Login */}
+      {/* Login */}
       <Route
         path="/login"
-        element={
-          user ? <Navigate to="/inicio" replace /> : <Login onLogin={(u) => setUser(u)} />
-        }
+        element={user ? <Navigate to="/inicio" replace /> : <Login onLogin={(u) => setUser(u)} />}
       />
 
       {/*Inicio */}
@@ -44,7 +44,7 @@ export default function App() {
         }
       />
 
-      {/*Registro */}
+      {/* Registro */}
       <Route
         path="/registro"
         element={
@@ -52,23 +52,39 @@ export default function App() {
             <RegistroUsuarios />
           </RutaPrivada>
         }
+
+
       />
 
-      {/*Empleados */}
       <Route
-        path="/empleados"
+        path="/registrar-empleados"
         element={
           <RutaPrivada user={user}>
-            <div style={{ padding: 20 }}>
-              <h1>Sistema de Planilla</h1>
-              <button onClick={logout}>Cerrar sesión</button>
-              <EmpleadoTable />
-            </div>
+            <RegistrarEmpleados />
           </RutaPrivada>
         }
       />
 
-      {/*Cualquier otra ruta */}
+
+      {/* Validar asistencias */}
+      <Route
+        path="/asistencias/validar"
+        element={
+          <RutaPrivada user={user}>
+            <ValidarAsistencias />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/registrar-persona"
+        element={
+          <RutaPrivada user={user}>
+            <RegistrarPersona user={user} onLogout={logout} />
+          </RutaPrivada>
+        }
+      />
+
+      {/* Cualquier otra ruta */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

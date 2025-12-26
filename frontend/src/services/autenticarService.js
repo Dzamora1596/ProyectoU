@@ -1,4 +1,4 @@
-//Archivo para servicios de autenticación
+//Codigo para servicios de autenticación
 import axios from "axios";
 
 const API = "http://localhost:4000/api/autenticar";

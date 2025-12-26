@@ -1,5 +1,5 @@
-//Archivo principal de la aplicación Express
-//Aquí se configuron las rutas y middlewares
+//Codigo principal de la aplicación Express
+//Configuracion de las rutas y middlewares
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
@@ -9,6 +9,7 @@ const errorHandler = require("./middlewares/errorHandler");
 
 const empleadoRoutes = require("./routes/empleadoRoutes");
 const autenticarRoutes = require("./routes/autenticarRoutes");
+const personaRoutes = require("./routes/personaRoutes");
 
 const app = express();
 //Para habilitar CORS y parseo de JSON que Cors es un middleware que permite solicitudes entre diferentes orígenes
@@ -18,7 +19,7 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Sistema Planilla cargando");
 });
-// Ruta de prueba para verificar la conexión a la base de datos
+// Verificar la conexión a la base de datos
 app.get("/api/test-db", async (req, res) => {
   try {
     const [rows] = await db.query("SELECT 1 AS resultado");
@@ -28,8 +29,10 @@ app.get("/api/test-db", async (req, res) => {
   }
 });
 //Rutas
-app.use("/api/empleados", empleadoRoutes);
-app.use("/api/autenticar", autenticarRoutes);
+app.use("/api/autenticar", require("./routes/autenticarRoutes"));
+app.use("/api/personas", require("./routes/personaRoutes"));
+app.use("/api/empleados", require("./routes/empleadoRoutes"));
+
 
 app.use(errorHandler);
 

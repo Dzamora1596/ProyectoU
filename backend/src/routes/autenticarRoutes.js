@@ -1,12 +1,15 @@
-// Para las rutas de autenticación
+// Codigo para el manejo de las rutas de autenticación
 const express = require("express");
 const router = express.Router();
+
 
 const {
   login,
   registrar,
   obtenerRoles,
 } = require("../controllers/autenticarController");
+
+
 
 // POST login
 router.post("/login", login);
