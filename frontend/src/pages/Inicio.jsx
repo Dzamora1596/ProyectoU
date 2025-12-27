@@ -17,6 +17,8 @@ export default function Inicio({ user, onLogout }) {
   const puedeRegistrarEmpleados = esAdmin || esJefatura;
   const puedeRegistrarPersona = esAdmin || esJefatura;
   const puedeValidarAsistencias = esAdmin || esJefatura || esPlanilla;
+  const puedeVerMantenimientos = esAdmin;
+
   const puedeVerSoloMiInfo = esColaborador;
 
   return (
@@ -59,7 +61,12 @@ export default function Inicio({ user, onLogout }) {
             <button>Registrar usuario</button>
           </Link>
         )}
-
+        {/*Mantenimientos solo Admin */}
+        {puedeVerMantenimientos && (
+          <Link to="/mantenimientos">
+            <button>Mantenimientos</button>
+          </Link>
+        )}
         {puedeVerSoloMiInfo && <button disabled>Mi información (pendiente)</button>}
       </div>
     </div>

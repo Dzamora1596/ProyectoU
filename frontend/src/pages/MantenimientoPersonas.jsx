@@ -1,8 +1,6 @@
-//Codigo para la página de registrar personas
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/autenticar.css";
-
 
 import {
   listarPersonas,
@@ -12,22 +10,17 @@ import {
   obtenerGeneros,
 } from "../services/personaService";
 
-export default function RegistrarPersona({ user, onLogout }) {
-  // solo Admin y jefatura puede agregar/editar/eliminar
+export default function MantenimientoPersonas({ user, onLogout }) {
   const rolId = Number(user?.rolId ?? user?.Rol_idRol ?? user?.rol_id ?? user?.idRol);
   const esAdmin = rolId === 1;
 
-  // Estados de la página
   const [loading, setLoading] = useState(true);
   const [personas, setPersonas] = useState([]);
   const [generos, setGeneros] = useState([]);
 
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [q, setQ] = useState("");
 
-  // Controla si estamos en modo "crear" o "editar"
-  const [modo, setModo] = useState("crear");
-
+  const [modo, setModo] = useState("crear"); // crear | editar
   const [form, setForm] = useState({
     idPersona: "",
     nombre: "",
@@ -37,8 +30,11 @@ export default function RegistrarPersona({ user, onLogout }) {
     activo: "1",
   });
 
-  
-  // El codigo normaliza los datos de géneros para soportar varios nombres de campos
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const rolTexto = user?.rolNombre || user?.rol || user?.nombreRol || "";
+
   const generosNormalizados = useMemo(() => {
     return (generos || []).map((g) => ({
       id:
@@ -60,7 +56,6 @@ export default function RegistrarPersona({ user, onLogout }) {
     }));
   }, [generos]);
 
-  // Codigo para mapear id de género a nombre
   const generoNombrePorId = useMemo(() => {
     const m = new Map();
     for (const g of generosNormalizados) {
@@ -69,7 +64,6 @@ export default function RegistrarPersona({ user, onLogout }) {
     return m;
   }, [generosNormalizados]);
 
-  // El codigo normaliza los datos de personas para soportar varios nombres de campos
   const personasNormalizadas = useMemo(() => {
     return (personas || []).map((p) => {
       const idPersona = p.idPersona ?? p.IdPersona ?? p.Persona_idPersona ?? p.id;
@@ -82,26 +76,33 @@ export default function RegistrarPersona({ user, onLogout }) {
         "";
       return {
         raw: p,
-        idPersona,
+        idPersona: Number(idPersona),
         nombre: p.Nombre ?? p.nombre ?? "",
         apellido1: p.Apellido1 ?? p.apellido1 ?? "",
         apellido2: p.Apellido2 ?? p.apellido2 ?? "",
-        generoId: generoId,
+        generoId: generoId === "" ? "" : Number(generoId),
         activo: normalizarActivo(p.Activo ?? p.activo),
       };
     });
   }, [personas]);
 
-  // Cargar datos iniciales 
+  const personasFiltradas = useMemo(() => {
+    const term = String(q || "").toLowerCase().trim();
+    if (!term) return personasNormalizadas;
+
+    return personasNormalizadas.filter((p) => {
+      const full = `${p.idPersona} ${p.nombre} ${p.apellido1} ${p.apellido2}`.toLowerCase();
+      return full.includes(term);
+    });
+  }, [personasNormalizadas, q]);
+
   useEffect(() => {
     const cargar = async () => {
       setLoading(true);
       setErr("");
+      setMsg("");
       try {
-        const [dataGeneros, dataPersonas] = await Promise.all([
-          obtenerGeneros(), 
-          listarPersonas(), 
-        ]);
+        const [dataGeneros, dataPersonas] = await Promise.all([obtenerGeneros(), listarPersonas()]);
 
         const listaGeneros =
           dataGeneros?.generos ?? dataGeneros?.rows ?? dataGeneros?.data ?? dataGeneros ?? [];
@@ -112,7 +113,7 @@ export default function RegistrarPersona({ user, onLogout }) {
         setGeneros(Array.isArray(listaGeneros) ? listaGeneros : []);
         setPersonas(Array.isArray(listaPersonas) ? listaPersonas : []);
       } catch (e) {
-        setErr(e?.response?.data?.mensaje || "Error cargando personas/géneros");
+        setErr(e?.response?.data?.mensaje || "Error cargando datos de Personas");
         setGeneros([]);
         setPersonas([]);
       } finally {
@@ -123,9 +124,23 @@ export default function RegistrarPersona({ user, onLogout }) {
     cargar();
   }, []);
 
-  // Manejo de formulario
+  const recargarPersonas = async () => {
+    const dataPersonas = await listarPersonas();
+    const listaPersonas =
+      dataPersonas?.personas ?? dataPersonas?.rows ?? dataPersonas?.data ?? dataPersonas ?? [];
+    setPersonas(Array.isArray(listaPersonas) ? listaPersonas : []);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Para que SOLO acepte números en ID Persona (y no se vea como "spinner raro")
+    if (name === "idPersona") {
+      const soloNumeros = String(value).replace(/\D/g, "");
+      setForm((prev) => ({ ...prev, [name]: soloNumeros }));
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -143,16 +158,16 @@ export default function RegistrarPersona({ user, onLogout }) {
     setErr("");
   };
 
-  const cargarEnFormulario = (p) => {
+  const editarFila = (p) => {
     setModo("editar");
     setMsg("");
     setErr("");
     setForm({
-      idPersona: String(p.idPersona ?? ""),
-      nombre: String(p.nombre ?? ""),
-      apellido1: String(p.apellido1 ?? ""),
-      apellido2: String(p.apellido2 ?? ""),
-      generoId: String(p.generoId ?? ""),
+      idPersona: String(p.idPersona),
+      nombre: p.nombre,
+      apellido1: p.apellido1,
+      apellido2: p.apellido2,
+      generoId: p.generoId === "" ? "" : String(p.generoId),
       activo: p.activo ? "1" : "0",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -168,31 +183,34 @@ export default function RegistrarPersona({ user, onLogout }) {
       return;
     }
 
-    // Payload es un objeto con los datos del formulario para enviar al backend
     const payload = {
       idPersona: Number(form.idPersona),
       nombre: String(form.nombre).trim(),
       apellido1: String(form.apellido1).trim(),
       apellido2: String(form.apellido2).trim(),
       generoId: Number(form.generoId),
-      activo: Number(form.activo), 
+      activo: Number(form.activo),
     };
 
     try {
-      if (modo === "crear") {
-        const data = await crearPersona(payload);
-        setMsg(data?.mensaje || "Persona creada correctamente");
-      } else {
-        const data = await actualizarPersona(payload.idPersona, payload);
-        setMsg(data?.mensaje || "Persona actualizada correctamente");
+      if (!payload.idPersona || Number.isNaN(payload.idPersona)) {
+        setErr("ID Persona inválido.");
+        return;
+      }
+      if (!payload.generoId || Number.isNaN(payload.generoId)) {
+        setErr("Debe seleccionar un género.");
+        return;
       }
 
-      // Recargar lista
-      const dataPersonas = await listarPersonas();
-      const listaPersonas =
-        dataPersonas?.personas ?? dataPersonas?.rows ?? dataPersonas?.data ?? dataPersonas ?? [];
-      setPersonas(Array.isArray(listaPersonas) ? listaPersonas : []);
+      if (modo === "crear") {
+        const data = await crearPersona(payload);
+        setMsg(data?.mensaje || "Persona creada");
+      } else {
+        const data = await actualizarPersona(payload.idPersona, payload);
+        setMsg(data?.mensaje || "Persona actualizada");
+      }
 
+      await recargarPersonas();
       limpiar();
     } catch (e2) {
       setErr(e2?.response?.data?.mensaje || "Error guardando persona");
@@ -210,27 +228,32 @@ export default function RegistrarPersona({ user, onLogout }) {
     try {
       const data = await eliminarPersona(idPersona);
       setMsg(data?.mensaje || "Persona eliminada");
-
-      const dataPersonas = await listarPersonas();
-      const listaPersonas =
-        dataPersonas?.personas ?? dataPersonas?.rows ?? dataPersonas?.data ?? dataPersonas ?? [];
-      setPersonas(Array.isArray(listaPersonas) ? listaPersonas : []);
+      await recargarPersonas();
     } catch (e) {
       setErr(e?.response?.data?.mensaje || "Error eliminando persona");
     }
   };
 
-  const rolTexto = user?.rolNombre || user?.rol || user?.nombreRol || "";
+  if (!esAdmin) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h1>Mantenimiento de Personas</h1>
+        <p>No tiene permisos para acceder a este módulo.</p>
+        <Link to="/inicio">
+          <button>Volver a Inicio</button>
+        </Link>
+      </div>
+    );
+  }
 
-  // ---- UI ----
   return (
     <div className="auth-page">
-      <div className="auth-card" style={{ maxWidth: 1100 }}>
+      <div className="auth-card" style={{ maxWidth: 1200 }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h1 className="auth-title" style={{ marginBottom: 6 }}>
-              Registrar Persona
+              Mantenimiento de Personas
             </h1>
             <p className="auth-subtitle" style={{ marginTop: 0 }}>
               Bienvenido, <b>{user?.nombreUsuario}</b> {rolTexto ? `(${rolTexto})` : ""}
@@ -238,8 +261,11 @@ export default function RegistrarPersona({ user, onLogout }) {
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <Link to="/mantenimientos">
+              <button className="auth-secondary">Volver a Mantenimientos</button>
+            </Link>
             <Link to="/inicio">
-              <button className="auth-secondary">Volver a Inicio</button>
+              <button className="auth-secondary">Inicio</button>
             </Link>
             <button className="auth-danger" onClick={onLogout}>
               Cerrar sesión
@@ -247,29 +273,19 @@ export default function RegistrarPersona({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Mensajes */}
-        {msg && (
-          <div className="auth-success" style={{ marginTop: 12 }}>
-            {msg}
-          </div>
-        )}
-        {err && (
-          <div className="auth-error" style={{ marginTop: 12 }}>
-            {err}
-          </div>
-        )}
+        {msg && <div className="auth-success" style={{ marginTop: 12 }}>{msg}</div>}
+        {err && <div className="auth-error" style={{ marginTop: 12 }}>{err}</div>}
 
-        {/* Formulario */}
+        {/* Form */}
         <div style={{ marginTop: 16, borderTop: "1px solid #1f2937", paddingTop: 16 }}>
-          <h2 style={{ margin: "0 0 10px 0" }}>{modo === "crear" ? "Nueva Persona" : "Editar Persona"}</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>{modo === "crear" ? "Agregar persona" : "Editar persona"}</h2>
+            <button className="auth-secondary" type="button" onClick={limpiar}>
+              Limpiar
+            </button>
+          </div>
 
-          {!esAdmin && (
-            <p style={{ marginTop: 0, opacity: 0.8 }}>
-              Usted solo puede <b>consultar</b>. Para crear/editar/eliminar se requiere rol Administrador.
-            </p>
-          )}
-
-          <form onSubmit={onSubmit} className="auth-form">
+          <form onSubmit={onSubmit} className="auth-form" style={{ marginTop: 12 }}>
             <div
               style={{
                 display: "grid",
@@ -277,7 +293,7 @@ export default function RegistrarPersona({ user, onLogout }) {
                 gap: 12,
               }}
             >
-              {/* Codigo para ID Persona */}
+              {/*ID Persona en texto*/}
               <Campo
                 label="ID Persona"
                 name="idPersona"
@@ -288,7 +304,7 @@ export default function RegistrarPersona({ user, onLogout }) {
                 onChange={handleChange}
                 placeholder="Ej: 1001"
                 required
-                disabled={!esAdmin || modo === "editar"} // No se puede editar el Id
+                disabled={modo === "editar"}
               />
 
               <Campo
@@ -298,7 +314,6 @@ export default function RegistrarPersona({ user, onLogout }) {
                 onChange={handleChange}
                 placeholder="Nombre"
                 required
-                disabled={!esAdmin}
               />
 
               <Campo
@@ -306,9 +321,8 @@ export default function RegistrarPersona({ user, onLogout }) {
                 name="apellido1"
                 value={form.apellido1}
                 onChange={handleChange}
-                placeholder="Apellido Paterno"
+                placeholder="Apellido 1"
                 required
-                disabled={!esAdmin}
               />
 
               <Campo
@@ -316,12 +330,10 @@ export default function RegistrarPersona({ user, onLogout }) {
                 name="apellido2"
                 value={form.apellido2}
                 onChange={handleChange}
-                placeholder="Apellido Materno"
+                placeholder="Apellido 2"
                 required
-                disabled={!esAdmin}
               />
 
-              {/*Muestra el género por nombre*/}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label className="auth-label">Género</label>
                 <select
@@ -330,50 +342,30 @@ export default function RegistrarPersona({ user, onLogout }) {
                   value={form.generoId}
                   onChange={handleChange}
                   required
-                  disabled={!esAdmin}
                 >
                   <option value="">Seleccione...</option>
-                  {generosNormalizados.length === 0 ? (
-                    <option value="" disabled>
-                      No hay géneros disponibles
-                    </option>
-                  ) : (
-                    generosNormalizados
-                      .filter((g) => g.activo !== false)
-                      .map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.nombre}
-                        </option>
-                      ))
-                  )}
+                  {generosNormalizados
+                    .filter((g) => g.activo !== false)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nombre}
+                      </option>
+                    ))}
                 </select>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label className="auth-label">Activo</label>
-                <select
-                  className="auth-input"
-                  name="activo"
-                  value={form.activo}
-                  onChange={handleChange}
-                  required
-                  disabled={!esAdmin}
-                >
+                <select className="auth-input" name="activo" value={form.activo} onChange={handleChange}>
                   <option value="1">Sí</option>
                   <option value="0">No</option>
                 </select>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-              {esAdmin && (
-                <button className="auth-button" type="submit">
-                  {modo === "crear" ? "Guardar" : "Actualizar"}
-                </button>
-              )}
-
-              <button type="button" className="auth-secondary" onClick={limpiar}>
-                Limpiar
+            <div style={{ marginTop: 14 }}>
+              <button className="auth-button" type="submit">
+                {modo === "crear" ? "Guardar" : "Actualizar"}
               </button>
             </div>
           </form>
@@ -381,52 +373,52 @@ export default function RegistrarPersona({ user, onLogout }) {
 
         {/* Tabla */}
         <div style={{ marginTop: 22 }}>
-          <h2 style={{ marginBottom: 10 }}>Personas registradas</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>Listado</h2>
+
+            <input
+              className="auth-input"
+              style={{ maxWidth: 320 }}
+              placeholder="Buscar por ID o nombre..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
 
           {loading ? (
-            <p>Cargando...</p>
-          ) : personasNormalizadas.length === 0 ? (
-            <p>No hay personas registradas.</p>
+            <p style={{ marginTop: 10 }}>Buscando...</p>
+          ) : personasFiltradas.length === 0 ? (
+            <p style={{ marginTop: 10 }}>No hay personas registradas.</p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div style={{ overflowX: "auto", marginTop: 10 }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ textAlign: "left" }}>
                     <Th>ID</Th>
                     <Th>Nombre</Th>
-                    <Th>Apellidos</Th>
+                    <Th>Apellido 1</Th>
+                    <Th>Apellido 2</Th>
                     <Th>Género</Th>
                     <Th>Activo</Th>
-                    <Th style={{ width: 220 }}>Acciones</Th>
+                    <Th style={{ width: 180 }}>Acciones</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {personasNormalizadas.map((p) => (
+                  {personasFiltradas.map((p) => (
                     <tr key={p.idPersona} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                       <Td>{p.idPersona}</Td>
                       <Td>{p.nombre}</Td>
-                      <Td>
-                        {p.apellido1} {p.apellido2}
-                      </Td>
+                      <Td>{p.apellido1}</Td>
+                      <Td>{p.apellido2}</Td>
                       <Td>{generoNombrePorId.get(Number(p.generoId)) || "Sin nombre"}</Td>
                       <Td>{p.activo ? "Sí" : "No"}</Td>
                       <Td>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button
-                            className="auth-secondary"
-                            type="button"
-                            onClick={() => cargarEnFormulario(p)}
-                            disabled={!esAdmin}
-                          >
-                            Editar
+                          <button className="auth-secondary" type="button" onClick={() => editarFila(p)}>
+                            Edit
                           </button>
-                          <button
-                            className="auth-danger"
-                            type="button"
-                            onClick={() => onDelete(p.idPersona)}
-                            disabled={!esAdmin}
-                          >
-                            Eliminar
+                          <button className="auth-danger" type="button" onClick={() => onDelete(p.idPersona)}>
+                            Del
                           </button>
                         </div>
                       </Td>
@@ -437,19 +429,12 @@ export default function RegistrarPersona({ user, onLogout }) {
             </div>
           )}
         </div>
-
-        {/* Atajo */}
-        <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Link to="/registrar-empleados">
-            <button className="auth-secondary">Ir a Registrar Empleados</button>
-          </Link>
-        </div>
       </div>
     </div>
   );
 }
 
-/* Helpers para normalizar valores */
+/* helpers para normalizar valores */
 
 function normalizarActivo(v) {
   if (v === null || v === undefined) return true;

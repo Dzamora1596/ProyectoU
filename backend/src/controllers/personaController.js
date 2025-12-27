@@ -1,13 +1,10 @@
-// backend/src/controllers/personaController.js
+// Codigo del controlador de personas
 const db = require("../config/db");
 
 // Convierte BIT (que viene como Buffer) a boolean
 const bitToBool = (v) => (Buffer.isBuffer(v) ? v[0] === 1 : Boolean(v));
 
-/**
- * GET /api/personas/generos
- * Devuelve catálogo de géneros: [{ idGenero, nombreGenero }]
- */
+/// GET /api/generos
 const listarGeneros = async (req, res, next) => {
   try {
     const [rows] = await db.query(
@@ -24,10 +21,7 @@ const listarGeneros = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/personas
- * Lista personas con el nombre del género
- */
+// GET /api/personas
 const listarPersonas = async (req, res, next) => {
   try {
     const [rows] = await db.query(
@@ -55,9 +49,7 @@ const listarPersonas = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/personas/:idPersona
- */
+// GET /api/personas
 const obtenerPersonaPorId = async (req, res, next) => {
   try {
     const { idPersona } = req.params;
@@ -90,10 +82,7 @@ const obtenerPersonaPorId = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/personas
- * body: { idPersona, nombre, apellido1, apellido2, generoId, activo }
- */
+// POST /api/personas
 const crearPersona = async (req, res, next) => {
   try {
     const { idPersona, nombre, apellido1, apellido2, generoId, activo } = req.body;
@@ -139,10 +128,7 @@ const crearPersona = async (req, res, next) => {
   }
 };
 
-/**
- * PUT /api/personas/:idPersona
- * body: { nombre, apellido1, apellido2, generoId, activo }
- */
+// PUT /api/personas
 const actualizarPersona = async (req, res, next) => {
   try {
     const { idPersona } = req.params;
@@ -190,14 +176,12 @@ const actualizarPersona = async (req, res, next) => {
   }
 };
 
-/**
- * DELETE /api/personas/:idPersona
- */
+// DELETE /api/personas
 const eliminarPersona = async (req, res, next) => {
   try {
     const { idPersona } = req.params;
 
-    // Si prefieres "desactivar" en vez de borrar, cambia esto por UPDATE Activo=0
+    
     const [result] = await db.query(`DELETE FROM Persona WHERE idPersona = ?`, [idPersona]);
 
     if (result.affectedRows === 0) {

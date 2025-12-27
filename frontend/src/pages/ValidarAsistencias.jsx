@@ -41,7 +41,7 @@ export default function ValidarAsistencias() {
         </div>
       </div>
 
-      {/* Layout: lista + detalle */}
+      {/* lista mas detalles */}
       <div
         style={{
           display: "grid",
@@ -60,7 +60,7 @@ export default function ValidarAsistencias() {
 
           <div style={{ marginTop: 12 }}>
             <button style={{ width: "100%", padding: 10 }}>
-              Seleccionar colaborador (sin funcionalidad)
+              Seleccionar colaborador (xxxxx)
             </button>
           </div>
         </div>
