@@ -1,3 +1,4 @@
+//Pagina de mantenimiento de personas
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/autenticar.css";
@@ -20,7 +21,7 @@ export default function MantenimientoPersonas({ user, onLogout }) {
 
   const [q, setQ] = useState("");
 
-  const [modo, setModo] = useState("crear"); // crear | editar
+  const [modo, setModo] = useState("crear"); 
   const [form, setForm] = useState({
     idPersona: "",
     nombre: "",
@@ -134,7 +135,7 @@ export default function MantenimientoPersonas({ user, onLogout }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Para que SOLO acepte números en ID Persona (y no se vea como "spinner raro")
+   
     if (name === "idPersona") {
       const soloNumeros = String(value).replace(/\D/g, "");
       setForm((prev) => ({ ...prev, [name]: soloNumeros }));
@@ -434,7 +435,7 @@ export default function MantenimientoPersonas({ user, onLogout }) {
   );
 }
 
-/* helpers para normalizar valores */
+// Me normaliza valores booleanos de activo
 
 function normalizarActivo(v) {
   if (v === null || v === undefined) return true;

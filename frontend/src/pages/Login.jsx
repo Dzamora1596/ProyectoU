@@ -1,4 +1,4 @@
-//Archivo para la página de login
+//Pagina de Login
 import { useState } from "react";
 import { login as loginService } from "../services/autenticarService";
 import "../styles/autenticar.css";
@@ -7,7 +7,7 @@ export default function Login({ onLogin }) {
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
-
+// Maneja el envío del formulario de login
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr("");

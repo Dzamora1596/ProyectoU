@@ -1,4 +1,4 @@
-//Codigo para servicios de gestión de personas
+//Servicio para manejar personas y géneros
 import axios from "axios";
 
 const api = axios.create({

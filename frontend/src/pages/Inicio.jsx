@@ -1,25 +1,27 @@
-//Codigo para la página de inicio con gestión de roles y permisos
+//Pagina de inicio que muestra opciones según el rol del usuario
 import { Link } from "react-router-dom";
 
 export default function Inicio({ user, onLogout }) {
   //Muestrar el rol del usuario y las opciones disponibles según sus permisos
-  const rolId = Number(
-    user?.rolId ?? user?.Rol_idRol ?? user?.rol_id ?? user?.idRol
-  ); // 1,2,3,4
+  const rolId = Number(user?.rolId ?? user?.Rol_idRol ?? user?.rol_id ?? user?.idRol); // 1,2,3,4
 
   const esAdmin = rolId === 1;
   const esJefatura = rolId === 2;
   const esPlanilla = rolId === 3;
   const esColaborador = rolId === 4;
 
-  // Manejo de permisos
+  // Permisos
   const puedeRegistrarUsuarios = esAdmin || esJefatura;
   const puedeRegistrarEmpleados = esAdmin || esJefatura;
   const puedeRegistrarPersona = esAdmin || esJefatura;
-  const puedeValidarAsistencias = esAdmin || esJefatura || esPlanilla;
-  const puedeVerMantenimientos = esAdmin;
 
+  const puedeRegistrarAsistencias = esAdmin || esJefatura; 
+  const puedeValidarAsistencias = esAdmin || esJefatura || esPlanilla;
+
+  const puedeVerMantenimientos = esAdmin;
   const puedeVerSoloMiInfo = esColaborador;
+
+  const rolTexto = user?.rolNombre || user?.rol || user?.nombreRol || "";
 
   return (
     <div style={{ padding: 20 }}>
@@ -29,45 +31,57 @@ export default function Inicio({ user, onLogout }) {
       </div>
 
       <p>
-        Bienvenido, <b>{user?.nombreUsuario}</b>{" "}
-        {user?.rolNombre || user?.rol || user?.nombreRol || ""}
+        Bienvenido, <b>{user?.nombreUsuario}</b> {rolTexto ? `(${rolTexto})` : ""}
       </p>
 
       <div style={{ marginTop: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {/*Registrar Persona */}
+        {/* Registrar Persona */}
         {puedeRegistrarPersona && (
           <Link to="/registrar-persona">
-            <button>Registrar persona</button>
+            <button type="button">Registrar persona</button>
           </Link>
         )}
 
-        {/*Registrar Empleados */}
+        {/* Registrar Empleados */}
         {puedeRegistrarEmpleados && (
           <Link to="/registrar-empleados">
-            <button>Registrar empleados</button>
+            <button type="button">Registrar empleados</button>
           </Link>
         )}
 
-        {/*Validar asistencias */}
+        {/*Registro asistencias*/}
+        {puedeRegistrarAsistencias && (
+          <Link to="/asistencias/registro">
+            <button type="button">Registro asistencias</button>
+          </Link>
+        )}
+
+        {/* Validar asistencias */}
         {puedeValidarAsistencias && (
           <Link to="/asistencias/validar">
-            <button>Validar asistencias</button>
+            <button type="button">Validar asistencias</button>
           </Link>
         )}
 
-        {/*Registrar usuarios */}
+        {/* Registrar usuarios */}
         {puedeRegistrarUsuarios && (
           <Link to="/registro">
-            <button>Registrar usuario</button>
+            <button type="button">Registrar usuario</button>
           </Link>
         )}
-        {/*Mantenimientos solo Admin */}
+
+        {/* Mantenimientos solo Admin */}
         {puedeVerMantenimientos && (
           <Link to="/mantenimientos">
-            <button>Mantenimientos</button>
+            <button type="button">Mantenimientos</button>
           </Link>
         )}
-        {puedeVerSoloMiInfo && <button disabled>Mi información (pendiente)</button>}
+
+        {puedeVerSoloMiInfo && (
+          <button type="button" disabled>
+            Mi información (en desarrollo)
+          </button>
+        )}
       </div>
     </div>
   );

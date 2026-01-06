@@ -1,6 +1,6 @@
 //Autenticación de las solicitudes usando JWT y JWT es una librería para manejar tokens
 const jwt = require('jsonwebtoken');
-
+//Middleware para autenticar solicitudes
 module.exports = (req, res, next) => {
   const header = req.headers.authorization;
 

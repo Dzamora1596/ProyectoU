@@ -1,23 +1,18 @@
-// Codigo para el manejo de las rutas de personas
+//Rutas de Personas
 const express = require("express");
 const router = express.Router();
-
-// Controladores de persona
+// Importar controladores de persona
 const {
   listarPersonas,
-  obtenerPersonaPorId,
+  listarGeneros,
   crearPersona,
   actualizarPersona,
   eliminarPersona,
-  listarGeneros,
 } = require("../controllers/personaController");
-
-// Codigo para listar géneros
-router.get("/generos", listarGeneros);
-
-// CRUD de personas
+// Rutas de Personas
 router.get("/", listarPersonas);
-router.get("/:idPersona", obtenerPersonaPorId);
+router.get("/generos", listarGeneros);
+// CRUD de Personas
 router.post("/", crearPersona);
 router.put("/:idPersona", actualizarPersona);
 router.delete("/:idPersona", eliminarPersona);

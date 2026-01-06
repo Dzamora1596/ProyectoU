@@ -1,203 +1,122 @@
-// Codigo del controlador de personas
-const db = require("../config/db");
+//Controllador para gestionar personas
+const PersonaModel = require("../models/personaModel");
 
-// Convierte BIT (que viene como Buffer) a boolean
-const bitToBool = (v) => (Buffer.isBuffer(v) ? v[0] === 1 : Boolean(v));
-
-/// GET /api/generos
-const listarGeneros = async (req, res, next) => {
+//Get para listar todas las personas
+const listarPersonas = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      `SELECT idCatalogo_Genero AS idGenero,
-              Descripcion_Genero AS nombreGenero
-       FROM Catalogo_Genero
-       WHERE Activo = b'1'
-       ORDER BY Descripcion_Genero`
-    );
-
-    return res.json({ ok: true, generos: rows });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// GET /api/personas
-const listarPersonas = async (req, res, next) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT  p.idPersona,
-               p.Nombre AS nombre,
-               p.Apellido1 AS apellido1,
-               p.Apellido2 AS apellido2,
-               p.Catalogo_Genero_idCatalogo_Genero AS generoId,
-               cg.Descripcion_Genero AS generoNombre,
-               p.Activo AS activo
-       FROM Persona p
-       INNER JOIN Catalogo_Genero cg
-         ON cg.idCatalogo_Genero = p.Catalogo_Genero_idCatalogo_Genero
-       ORDER BY p.idPersona DESC`
-    );
-
-    const personas = rows.map((r) => ({
-      ...r,
-      activo: bitToBool(r.activo),
-    }));
-
+    const personas = await PersonaModel.listar();
     return res.json({ ok: true, personas });
-  } catch (error) {
-    next(error);
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ ok: false, mensaje: "Error listando personas", error: String(e) });
   }
 };
 
-// GET /api/personas
-const obtenerPersonaPorId = async (req, res, next) => {
+//Get para listar todos los géneros
+const listarGeneros = async (req, res) => {
   try {
-    const { idPersona } = req.params;
-
-    const [rows] = await db.query(
-      `SELECT  p.idPersona,
-               p.Nombre AS nombre,
-               p.Apellido1 AS apellido1,
-               p.Apellido2 AS apellido2,
-               p.Catalogo_Genero_idCatalogo_Genero AS generoId,
-               cg.Descripcion_Genero AS generoNombre,
-               p.Activo AS activo
-       FROM Persona p
-       INNER JOIN Catalogo_Genero cg
-         ON cg.idCatalogo_Genero = p.Catalogo_Genero_idCatalogo_Genero
-       WHERE p.idPersona = ?`,
-      [idPersona]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ ok: false, mensaje: "Persona no encontrada" });
-    }
-
-    const persona = rows[0];
-    persona.activo = bitToBool(persona.activo);
-
-    return res.json({ ok: true, persona });
-  } catch (error) {
-    next(error);
+    const generos = await PersonaModel.listarGeneros();
+    return res.json({ ok: true, generos });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ ok: false, mensaje: "Error listando géneros", error: String(e) });
   }
 };
 
-// POST /api/personas
-const crearPersona = async (req, res, next) => {
+// POST para crear una nueva persona
+const crearPersona = async (req, res) => {
   try {
     const { idPersona, nombre, apellido1, apellido2, generoId, activo } = req.body;
 
     if (!idPersona || !nombre || !apellido1 || !apellido2 || !generoId) {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "Faltan datos: idPersona, nombre, apellido1, apellido2, generoId",
-      });
+      return res.status(400).json({ ok: false, mensaje: "Faltan datos requeridos." });
     }
 
-    // Validar género existe y está activo
-    const [gen] = await db.query(
-      `SELECT idCatalogo_Genero
-       FROM Catalogo_Genero
-       WHERE idCatalogo_Genero = ? AND Activo = b'1'`,
-      [generoId]
-    );
-    if (gen.length === 0) {
-      return res.status(400).json({ ok: false, mensaje: "Género inválido o inactivo" });
+    const generoOk = await PersonaModel.existeGenero(generoId);
+    if (!generoOk) {
+      return res.status(400).json({ ok: false, mensaje: "El género indicado no existe." });
     }
 
-    // Validar persona no exista
-    const [existe] = await db.query(`SELECT idPersona FROM Persona WHERE idPersona = ?`, [
-      idPersona,
-    ]);
-    if (existe.length > 0) {
-      return res.status(409).json({ ok: false, mensaje: "Ese idPersona ya existe" });
+    const existe = await PersonaModel.existePersona(idPersona);
+    if (existe) {
+      return res.status(400).json({ ok: false, mensaje: "Ya existe una persona con ese ID." });
     }
 
-    const activoBit = Number(activo) === 0 ? 0 : 1;
+    await PersonaModel.crear({
+      idPersona: Number(idPersona),
+      nombre: String(nombre).trim(),
+      apellido1: String(apellido1).trim(),
+      apellido2: String(apellido2).trim(),
+      generoId: Number(generoId),
+      activo: Number(activo ?? 1),
+    });
 
-    await db.query(
-      `INSERT INTO Persona
-       (idPersona, Nombre, Apellido1, Apellido2, Catalogo_Genero_idCatalogo_Genero, Activo)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [idPersona, nombre.trim(), apellido1.trim(), apellido2.trim(), generoId, activoBit]
-    );
-
-    return res.status(201).json({ ok: true, mensaje: "Persona creada correctamente" });
-  } catch (error) {
-    next(error);
+    return res.json({ ok: true, mensaje: "Persona creada correctamente." });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ ok: false, mensaje: "Error creando persona", error: String(e) });
   }
 };
 
-// PUT /api/personas
-const actualizarPersona = async (req, res, next) => {
+// PUT para actualizar una persona registrada
+const actualizarPersona = async (req, res) => {
   try {
-    const { idPersona } = req.params;
+    const idPersona = Number(req.params.idPersona);
     const { nombre, apellido1, apellido2, generoId, activo } = req.body;
 
-    // Debe existir
-    const [existe] = await db.query(`SELECT idPersona FROM Persona WHERE idPersona = ?`, [
-      idPersona,
-    ]);
-    if (existe.length === 0) {
-      return res.status(404).json({ ok: false, mensaje: "Persona no encontrada" });
+    if (!idPersona || !nombre || !apellido1 || !apellido2 || !generoId) {
+      return res.status(400).json({ ok: false, mensaje: "Faltan datos requeridos." });
     }
 
-    if (!nombre || !apellido1 || !apellido2 || !generoId) {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "Faltan datos: nombre, apellido1, apellido2, generoId",
-      });
+    const generoOk = await PersonaModel.existeGenero(generoId);
+    if (!generoOk) {
+      return res.status(400).json({ ok: false, mensaje: "El género indicado no existe." });
     }
 
-    // Validar género existe y está activo
-    const [gen] = await db.query(
-      `SELECT idCatalogo_Genero
-       FROM Catalogo_Genero
-       WHERE idCatalogo_Genero = ? AND Activo = b'1'`,
-      [generoId]
-    );
-    if (gen.length === 0) {
-      return res.status(400).json({ ok: false, mensaje: "Género inválido o inactivo" });
+    const affected = await PersonaModel.actualizarById(idPersona, {
+      nombre: String(nombre).trim(),
+      apellido1: String(apellido1).trim(),
+      apellido2: String(apellido2).trim(),
+      generoId: Number(generoId),
+      activo: Number(activo ?? 1),
+    });
+
+    if (affected === 0) {
+      return res.status(404).json({ ok: false, mensaje: "Persona no encontrada." });
     }
 
-    const activoBit = Number(activo) === 0 ? 0 : 1;
-
-    await db.query(
-      `UPDATE Persona
-       SET Nombre = ?, Apellido1 = ?, Apellido2 = ?,
-           Catalogo_Genero_idCatalogo_Genero = ?, Activo = ?
-       WHERE idPersona = ?`,
-      [nombre.trim(), apellido1.trim(), apellido2.trim(), generoId, activoBit, idPersona]
-    );
-
-    return res.json({ ok: true, mensaje: "Persona actualizada correctamente" });
-  } catch (error) {
-    next(error);
+    return res.json({ ok: true, mensaje: "Persona actualizada correctamente." });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ ok: false, mensaje: "Error actualizando persona", error: String(e) });
   }
 };
 
-// DELETE /api/personas
-const eliminarPersona = async (req, res, next) => {
+// DELETE para desactivar una persona
+const eliminarPersona = async (req, res) => {
   try {
-    const { idPersona } = req.params;
+    const idPersona = Number(req.params.idPersona);
 
-    
-    const [result] = await db.query(`DELETE FROM Persona WHERE idPersona = ?`, [idPersona]);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ ok: false, mensaje: "Persona no encontrada" });
+    const affected = await PersonaModel.desactivarById(idPersona);
+    if (affected === 0) {
+      return res.status(404).json({ ok: false, mensaje: "Persona no encontrada." });
     }
 
-    return res.json({ ok: true, mensaje: "Persona eliminada correctamente" });
-  } catch (error) {
-    next(error);
+    return res.json({ ok: true, mensaje: "Persona desactivada correctamente." });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ ok: false, mensaje: "Error eliminando persona", error: String(e) });
   }
 };
 
 module.exports = {
-  listarGeneros,
   listarPersonas,
-  obtenerPersonaPorId,
+  listarGeneros,      
   crearPersona,
   actualizarPersona,
   eliminarPersona,

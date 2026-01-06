@@ -1,8 +1,25 @@
-// Codigo para el controlador de autenticación de usuarios
-const db = require("../config/db");
+// Codigo del controlador de autenticación que maneja el login, registro y obtención de roles.
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
-// Para el login de usuario
+const autenticarModel = require("../models/autenticarModel");
+const rolModel = require("../models/rolModel");
+
+// Helpers que convierten valores bit a booleanos para mayor compatibilidad
+function bitToBool(v) {
+  if (v === null || v === undefined) return true;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v === 1;
+
+  if (typeof v === "object" && v !== null && typeof v[0] !== "undefined") {
+    return v[0] === 1;
+  }
+
+  const s = String(v).toLowerCase().trim();
+  return s === "1" || s === "true" || s === "si" || s === "sí";
+}
+
+//LOGIN con JWT
 const login = async (req, res, next) => {
   try {
     const { usuario, password } = req.body;
@@ -14,41 +31,24 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Obtener el usuario
-    const sql = `
-      SELECT 
-        u.idUsuario,
-        u.NombreUsuario,
-        u.Password,
-        u.Activo,
-        u.Rol_idRol,
-        r.Descripcion AS RolNombre
-      FROM Usuario u
-      INNER JOIN Rol r ON r.idRol = u.Rol_idRol
-      WHERE u.NombreUsuario = ?
-      LIMIT 1
-    `;
+    // Obtener usuario para login
+    const user = await autenticarModel.buscarUsuarioParaLogin(usuario);
 
-    const [rows] = await db.query(sql, [usuario]);
-
-    if (!rows || rows.length === 0) {
+    if (!user) {
       return res.status(401).json({ ok: false, mensaje: "Credenciales inválidas" });
     }
 
-    const user = rows[0];
-
     // Validar si el usuario está activo
-    const activo = Buffer.isBuffer(user.Activo) ? user.Activo[0] === 1 : Boolean(user.Activo);
-
+    const activo = bitToBool(user.Activo);
     if (!activo) {
       return res.status(401).json({ ok: false, mensaje: "Usuario inactivo" });
     }
 
-    // Comparación password
+    // Comparación de las contraseñas
     const passPlano = String(password).trim();
     const hashBD = String(user.Password || "").trim();
 
-    // Para validar que el hash almacenado sea bcrypt
+    // Validar que el hash almacenado sea bcrypt
     if (!hashBD.startsWith("$2a$") && !hashBD.startsWith("$2b$") && !hashBD.startsWith("$2y$")) {
       return res.status(500).json({
         ok: false,
@@ -57,28 +57,37 @@ const login = async (req, res, next) => {
     }
 
     const passwordValido = await bcrypt.compare(passPlano, hashBD);
-
     if (!passwordValido) {
       return res.status(401).json({ ok: false, mensaje: "Credenciales inválidas" });
     }
 
-    //Devuelve el rolId y rolNombre para que el frontend pueda mostrar botones
+    // Generar token con datos mínimos necesarios
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ ok: false, mensaje: "JWT_SECRET no está configurado en .env" });
+    }
+
+    const payload = {
+      idUsuario: user.idUsuario,
+      nombreUsuario: user.NombreUsuario,
+      rolId: user.Rol_idRol,
+      rolNombre: user.RolNombre,
+    };
+
+    // Tiempo de expiración de 8 horas para permitir jornadas laborales completas
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "8h" });
+
     return res.json({
       ok: true,
       mensaje: "Login exitoso",
-      usuario: {
-        idUsuario: user.idUsuario,
-        nombreUsuario: user.NombreUsuario,
-        rolId: user.Rol_idRol,
-        rolNombre: user.RolNombre,
-      },
+      token, // ✅ IMPORTANTÍSIMO
+      usuario: payload,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// Registrar un nuevo usuario
+// Registrar un nuevo usuario 
 const registrar = async (req, res, next) => {
   try {
     const { empleadoId, nombreUsuario, password, rolId } = req.body;
@@ -90,71 +99,48 @@ const registrar = async (req, res, next) => {
       });
     }
 
-    // Validar que el empleadoId exista
-    const [emp] = await db.query(
-      `SELECT idEmpleado FROM Empleado WHERE idEmpleado = ?`,
-      [empleadoId]
-    );
-
-    if (!emp || emp.length === 0) {
+    // Validar empleado existe
+    const empOk = await autenticarModel.empleadoExiste(empleadoId);
+    if (!empOk) {
       return res.status(400).json({ ok: false, mensaje: "Empleado no existe" });
     }
 
-    // Validar que el nombre de usuario no exista
-    const [existe] = await db.query(
-      `SELECT idUsuario FROM Usuario WHERE NombreUsuario = ?`,
-      [nombreUsuario]
-    );
-
-    if (existe.length > 0) {
+    // Validar que no se repita el nombre de usuario 
+    const existe = await autenticarModel.nombreUsuarioExiste(nombreUsuario);
+    if (existe) {
       return res.status(409).json({ ok: false, mensaje: "El nombre de usuario ya existe" });
     }
 
-    // Validar que el rolId exista y esté activo
-    const [rol] = await db.query(
-      `SELECT idRol FROM Rol WHERE idRol = ? AND Activo = b'1'`,
-      [rolId]
-    );
-
-    if (!rol || rol.length === 0) {
+    // Valida que el rol exista y esté activo
+    const rolOk = await rolModel.rolExisteActivo(rolId);
+    if (!rolOk) {
       return res.status(400).json({ ok: false, mensaje: "Rol inválido o inactivo" });
     }
 
-    // Encriptar  password
+    // Hash bcrypt
     const hash = await bcrypt.hash(String(password).trim(), 10);
 
-    // Insertar  nuevo usuario
-    const insertSql = `
-      INSERT INTO Usuario (NombreUsuario, Password, Empleado_idEmpleado, Rol_idRol, Activo)
-      VALUES (?, ?, ?, ?, b'1')
-    `;
-
-    const [result] = await db.query(insertSql, [
-      String(nombreUsuario).trim(),
-      hash,
-      Number(empleadoId),
-      Number(rolId),
-    ]);
+    const result = await autenticarModel.insertarUsuarioRegistro({
+      nombreUsuario,
+      passwordHash: hash,
+      empleadoId,
+      rolId,
+    });
 
     return res.status(201).json({
       ok: true,
       mensaje: "Usuario creado correctamente",
-      idUsuario: result.insertId, 
+      idUsuario: result.insertId,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// Obtener los roles disponibles
+// Roles disponibles
 const obtenerRoles = async (req, res, next) => {
   try {
-    const [rows] = await db.query(
-      `SELECT idRol, Descripcion
-       FROM Rol
-       WHERE Activo = b'1'
-       ORDER BY idRol ASC`
-    );
+    const rows = await rolModel.listarRolesActivos();
 
     return res.json({
       ok: true,

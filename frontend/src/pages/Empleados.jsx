@@ -1,4 +1,4 @@
-//Muestra la página de empleados en el frontend
+//Pagina para gestionar empleados
 import { useEffect, useState } from 'react';
 import { obtenerEmpleados } from '../services/empleadoService';
 // Funcion para la página de empleados

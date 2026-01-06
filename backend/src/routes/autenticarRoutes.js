@@ -1,8 +1,8 @@
-// Codigo para el manejo de las rutas de autenticación
+// Rutas de Autenticación
 const express = require("express");
 const router = express.Router();
 
-
+// Importar controladores de autenticación
 const {
   login,
   registrar,
