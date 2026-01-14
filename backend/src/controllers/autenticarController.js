@@ -1,16 +1,16 @@
-// Codigo del controlador de autenticación que maneja el login, registro y obtención de roles.
+// autenticarController.js
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
 const autenticarModel = require("../models/autenticarModel");
-const rolModel = require("../models/rolModel");
 
-// Helpers que convierten valores bit a booleanos para mayor compatibilidad
+
 function bitToBool(v) {
-  if (v === null || v === undefined) return true;
+  if (v === null || v === undefined) return false;
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v === 1;
+  if (Buffer.isBuffer(v)) return v.length ? v[0] === 1 : false;
 
+ 
   if (typeof v === "object" && v !== null && typeof v[0] !== "undefined") {
     return v[0] === 1;
   }
@@ -19,10 +19,45 @@ function bitToBool(v) {
   return s === "1" || s === "true" || s === "si" || s === "sí";
 }
 
-//LOGIN con JWT
+function safeStr(v) {
+  return String(v ?? "").trim();
+}
+
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+
+const MAX_INTENTOS = (() => {
+  const n = Number(process.env.MAX_LOGIN_INTENTOS || 5);
+  return Number.isFinite(n) && n > 0 ? n : 5;
+})();
+
+const JWT_EXPIRES_IN = safeStr(process.env.JWT_EXPIRES_IN) || "8h";
+
+
+async function tryRegistrarLogAcceso({ idUsuario, empleadoId, exitoso, observacion }) {
+  try {
+    
+    if (!idUsuario || !empleadoId) return;
+
+    await autenticarModel.registrarLogAcceso({
+      idUsuario: Number(idUsuario),
+      empleadoId: Number(empleadoId),
+      exitoso: !!exitoso,
+      observacion: safeStr(observacion),
+    });
+  } catch (_) {
+    
+  }
+}
+
+
 const login = async (req, res, next) => {
   try {
-    const { usuario, password } = req.body;
+    const usuario = safeStr(req.body?.usuario);
+    const password = safeStr(req.body?.password);
 
     if (!usuario || !password) {
       return res.status(400).json({
@@ -31,24 +66,52 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Obtener usuario para login
+    
     const user = await autenticarModel.buscarUsuarioParaLogin(usuario);
 
+    
     if (!user) {
       return res.status(401).json({ ok: false, mensaje: "Credenciales inválidas" });
     }
 
-    // Validar si el usuario está activo
+    const idUsuario = Number(user.idUsuario);
+    const empleadoId = Number(user.empleadoId);
+
     const activo = bitToBool(user.Activo);
+    const bloqueado = bitToBool(user.Bloqueado);
+    const intentosFallidos = safeNum(user.Intentos_Fallidos) || 0;
+
+    
     if (!activo) {
+      await tryRegistrarLogAcceso({
+        idUsuario,
+        empleadoId,
+        exitoso: false,
+        observacion: "Usuario inactivo",
+      });
+
       return res.status(401).json({ ok: false, mensaje: "Usuario inactivo" });
     }
 
-    // Comparación de las contraseñas
-    const passPlano = String(password).trim();
-    const hashBD = String(user.Password || "").trim();
+    
+    if (bloqueado) {
+      await tryRegistrarLogAcceso({
+        idUsuario,
+        empleadoId,
+        exitoso: false,
+        observacion: "Usuario bloqueado",
+      });
 
-    // Validar que el hash almacenado sea bcrypt
+      return res.status(403).json({
+        ok: false,
+        mensaje: "Usuario bloqueado por intentos fallidos. Contacte a un administrador.",
+      });
+    }
+
+    
+    const hashBD = safeStr(user.Password);
+
+    
     if (!hashBD.startsWith("$2a$") && !hashBD.startsWith("$2b$") && !hashBD.startsWith("$2y$")) {
       return res.status(500).json({
         ok: false,
@@ -56,30 +119,66 @@ const login = async (req, res, next) => {
       });
     }
 
-    const passwordValido = await bcrypt.compare(passPlano, hashBD);
+    const passwordValido = await bcrypt.compare(password, hashBD);
+
+    
     if (!passwordValido) {
-      return res.status(401).json({ ok: false, mensaje: "Credenciales inválidas" });
+      const nuevosIntentos = intentosFallidos + 1;
+      const nuevoBloqueo = nuevosIntentos >= MAX_INTENTOS;
+
+      await autenticarModel.actualizarIntentos({
+        idUsuario,
+        intentosFallidos: nuevosIntentos,
+        bloqueado: nuevoBloqueo,
+      });
+
+      await tryRegistrarLogAcceso({
+        idUsuario,
+        empleadoId,
+        exitoso: false,
+        observacion: nuevoBloqueo
+          ? `Credenciales inválidas (bloqueado al intento ${nuevosIntentos})`
+          : `Credenciales inválidas (intento ${nuevosIntentos}/${MAX_INTENTOS})`,
+      });
+
+      return res.status(401).json({
+        ok: false,
+        mensaje: nuevoBloqueo
+          ? "Usuario bloqueado por intentos fallidos. Contacte a un administrador."
+          : "Credenciales inválidas",
+        intentosRestantes: Math.max(0, MAX_INTENTOS - nuevosIntentos),
+      });
     }
 
-    // Generar token con datos mínimos necesarios
+    
+    await autenticarModel.resetIntentos(idUsuario);
+
+    
     if (!process.env.JWT_SECRET) {
       return res.status(500).json({ ok: false, mensaje: "JWT_SECRET no está configurado en .env" });
     }
 
     const payload = {
-      idUsuario: user.idUsuario,
+      idUsuario,
+      empleadoId,
       nombreUsuario: user.NombreUsuario,
-      rolId: user.Rol_idRol,
-      rolNombre: user.RolNombre,
+      rolId: user.rolId,
+      rolNombre: user.rolNombre, 
     };
 
-    // Tiempo de expiración de 8 horas para permitir jornadas laborales completas
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "8h" });
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    await tryRegistrarLogAcceso({
+      idUsuario,
+      empleadoId,
+      exitoso: true,
+      observacion: "Login exitoso",
+    });
 
     return res.json({
       ok: true,
       mensaje: "Login exitoso",
-      token, // ✅ IMPORTANTÍSIMO
+      token,
       usuario: payload,
     });
   } catch (error) {
@@ -87,10 +186,13 @@ const login = async (req, res, next) => {
   }
 };
 
-// Registrar un nuevo usuario 
+
 const registrar = async (req, res, next) => {
   try {
-    const { empleadoId, nombreUsuario, password, rolId } = req.body;
+    const empleadoId = safeNum(req.body?.empleadoId);
+    const nombreUsuario = safeStr(req.body?.nombreUsuario);
+    const password = safeStr(req.body?.password);
+    const rolId = safeNum(req.body?.rolId);
 
     if (!empleadoId || !nombreUsuario || !password || !rolId) {
       return res.status(400).json({
@@ -99,26 +201,30 @@ const registrar = async (req, res, next) => {
       });
     }
 
-    // Validar empleado existe
-    const empOk = await autenticarModel.empleadoExiste(empleadoId);
+    
+    const empOk = await autenticarModel.empleadoExiste(empleadoId, { soloActivos: true });
     if (!empOk) {
-      return res.status(400).json({ ok: false, mensaje: "Empleado no existe" });
+      return res.status(400).json({ ok: false, mensaje: "Empleado no existe o está inactivo" });
     }
 
-    // Validar que no se repita el nombre de usuario 
+    
     const existe = await autenticarModel.nombreUsuarioExiste(nombreUsuario);
     if (existe) {
       return res.status(409).json({ ok: false, mensaje: "El nombre de usuario ya existe" });
     }
 
-    // Valida que el rol exista y esté activo
-    const rolOk = await rolModel.rolExisteActivo(rolId);
+    
+    const rolOk = await autenticarModel.rolExisteActivo(rolId);
     if (!rolOk) {
       return res.status(400).json({ ok: false, mensaje: "Rol inválido o inactivo" });
     }
 
-    // Hash bcrypt
-    const hash = await bcrypt.hash(String(password).trim(), 10);
+    
+    if (password.length < 6) {
+      return res.status(400).json({ ok: false, mensaje: "El password debe tener al menos 6 caracteres." });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
 
     const result = await autenticarModel.insertarUsuarioRegistro({
       nombreUsuario,
@@ -137,10 +243,10 @@ const registrar = async (req, res, next) => {
   }
 };
 
-// Roles disponibles
+
 const obtenerRoles = async (req, res, next) => {
   try {
-    const rows = await rolModel.listarRolesActivos();
+    const rows = await autenticarModel.listarRolesActivos();
 
     return res.json({
       ok: true,

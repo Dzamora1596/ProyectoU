@@ -1,4 +1,4 @@
-//Manejo errores en la aplicación Express
+//errorHandler.js
 function errorHandler(err, req, res, next) {
   console.error(err);
   res.status(500).json({

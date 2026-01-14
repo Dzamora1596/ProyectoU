@@ -1,8 +1,8 @@
-// Modelo para gestionar los horarios laborales en la base de datos
+// horarioLaboralModel.js
 const db = require("../config/db");
-// Funciones para interactuar con la tabla Horario_Laboral
+
 const horarioLaboralModel = {
-  // Lista todos los horarios laborales
+  
   async listarHorarios() {
     const [rows] = await db.query(
       `SELECT 
@@ -16,7 +16,7 @@ const horarioLaboralModel = {
     );
     return rows;
   },
-// Verifica si un horario laboral existe por su ID
+
   async existeHorario(idHorarioLaboral) {
     const [rows] = await db.query(
       `SELECT idHorario_Laboral

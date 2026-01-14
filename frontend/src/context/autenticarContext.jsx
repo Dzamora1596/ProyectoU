@@ -1,5 +1,5 @@
+//autenticarContext.jsx
 /* eslint-disable react-refresh/only-export-components */
-//Autenticación de usuarios en la aplicación React utilizando Context API.
 import { createContext, useContext, useState } from 'react';
 
 const AutenticarContext = createContext(null);

@@ -1,4 +1,4 @@
-// server - Punto de entrada del servidor Express
+// server.js
 require("dotenv").config();
 const app = require("./app");
 

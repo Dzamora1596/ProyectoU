@@ -1,27 +1,41 @@
-// Rutas de Horarios Laborales
+//horarioLaboralRoutes.js
 const express = require("express");
 const router = express.Router();
 
-const autorizarRoles = require("../middlewares/autorizarRoles");
+const autenticar = require("../middlewares/autenticarMiddleware");
+const requireRole = require("../middlewares/requireRole");
+
 const horarioLaboralController = require("../controllers/horarioLaboralController");
 
-//Listar horarios laborales
-router.get("/", autorizarRoles([1]), horarioLaboralController.listarHorarios);
 
-//CRUD Horario Laboral
-router.post("/", autorizarRoles([1]), horarioLaboralController.crearHorario);
+router.use(autenticar);
 
-//Actualizar horario laboral
+
+router.get(
+  "/",
+  requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
+  horarioLaboralController.listarHorarios
+);
+
+
+
+router.post(
+  "/",
+  requireRole(["Admin", "Jefatura"]),
+  horarioLaboralController.crearHorario
+);
+
+
 router.put(
-  "/:idHorarioLaboral",
-  autorizarRoles([1]),
+  "/:idHorario",
+  requireRole(["Admin", "Jefatura"]),
   horarioLaboralController.actualizarHorario
 );
 
-// Desactivar horario laboral
+
 router.delete(
-  "/:idHorarioLaboral",
-  autorizarRoles([1]),
+  "/:idHorario",
+  requireRole(["Admin", "Jefatura"]),
   horarioLaboralController.eliminarHorario
 );
 

@@ -1,7 +1,7 @@
-//Rutas de Personas
+//personaRoutes.js
 const express = require("express");
 const router = express.Router();
-// Importar controladores de persona
+ 
 const {
   listarPersonas,
   listarGeneros,
@@ -9,10 +9,10 @@ const {
   actualizarPersona,
   eliminarPersona,
 } = require("../controllers/personaController");
-// Rutas de Personas
+ 
 router.get("/", listarPersonas);
 router.get("/generos", listarGeneros);
-// CRUD de Personas
+ 
 router.post("/", crearPersona);
 router.put("/:idPersona", actualizarPersona);
 router.delete("/:idPersona", eliminarPersona);

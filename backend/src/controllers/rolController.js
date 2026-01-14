@@ -1,7 +1,7 @@
-// Controllador para gestionar roles del sistema
+// roleController.js
 const db = require("../config/db");
 
-// Helpers que convierten valores bit a booleanos para mayor compatibilidad
+
 
 function bitToBool(v) {
   if (v === null || v === undefined) return false;
@@ -22,7 +22,7 @@ function toBit01(v, defaultValue = 1) {
   return defaultValue;
 }
 
-// GET para listar todos los roles disponibles
+
 const listarRoles = async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -49,7 +49,7 @@ const listarRoles = async (req, res) => {
   }
 };
 
-//post para crear un nuevo rol
+
 const crearRol = async (req, res) => {
   try {
     const descripcion = String(req.body?.descripcion ?? "").trim();
@@ -59,7 +59,7 @@ const crearRol = async (req, res) => {
       return res.status(400).json({ ok: false, mensaje: "La descripción es requerida." });
     }
 
-    //Me ayuda a evitar duplicados
+    
     const [ex] = await db.query(
       `SELECT idRol FROM Rol WHERE LOWER(Descripcion) = LOWER(?) LIMIT 1`,
       [descripcion]
@@ -87,7 +87,7 @@ const crearRol = async (req, res) => {
   }
 };
 
-// PUT para actualizar un rol existente
+
 const actualizarRol = async (req, res) => {
   try {
     const idRol = Number(req.params.idRol);
@@ -96,12 +96,12 @@ const actualizarRol = async (req, res) => {
     const descripcion = req.body?.descripcion;
     const activo = req.body?.activo;
 
-    // nada que actualizar
+   
     if (descripcion === undefined && activo === undefined) {
       return res.status(400).json({ ok: false, mensaje: "Debe enviar al menos descripcion o activo." });
     }
 
-    // Validaciones para descripción si se envía
+    
     let descFinal = null;
     if (descripcion !== undefined) {
       descFinal = String(descripcion ?? "").trim();
@@ -109,7 +109,7 @@ const actualizarRol = async (req, res) => {
         return res.status(400).json({ ok: false, mensaje: "La descripción no puede ir vacía." });
       }
 
-      // Para evitar duplicados
+      
       const [ex] = await db.query(
         `SELECT idRol FROM Rol WHERE LOWER(Descripcion) = LOWER(?) AND idRol <> ? LIMIT 1`,
         [descFinal, idRol]
@@ -118,10 +118,10 @@ const actualizarRol = async (req, res) => {
         return res.status(400).json({ ok: false, mensaje: "Ya existe otro rol con esa descripción." });
       }
     }
-    // Const para activo si se envía 
+     
     const activoFinal = activo === undefined ? null : toBit01(activo);
 
-    // Construir query dinámicamente
+    
     const sets = [];
     const params = [];
 
@@ -155,13 +155,13 @@ const actualizarRol = async (req, res) => {
   }
 };
 
-// DELETE para desactivar un rol
+
 const desactivarRol = async (req, res) => {
   try {
     const idRol = Number(req.params.idRol);
     if (!idRol) return res.status(400).json({ ok: false, mensaje: "idRol inválido." });
 
-    //Me ayuda a notificar el no desactivar roles base del sistema
+    
     if ([1, 2, 3, 4].includes(idRol)) {
       return res.status(400).json({ ok: false, mensaje: "No se puede desactivar un rol base del sistema." });
     }
@@ -182,7 +182,7 @@ const desactivarRol = async (req, res) => {
   }
 };
 
-// DELETE para eliminar un rol definitivamente
+
 const eliminarRolDefinitivo = async (req, res) => {
   try {
     const idRol = Number(req.params.idRol);

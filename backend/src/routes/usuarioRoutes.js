@@ -1,26 +1,38 @@
-// Rutas de Usuarios
+//  usuarioRoutes.js
 const express = require("express");
 const router = express.Router();
-// Importar controladores de usuario
+
+const autenticar = require("../middlewares/autenticarMiddleware");
+const requireRole = require("../middlewares/requireRole");
+
 const {
   listarUsuarios,
   crearUsuario,
   actualizarUsuario,
-  eliminarUsuario, // soft
-  eliminarUsuarioDefinitivo, // hard
+  eliminarUsuario,
+  eliminarUsuarioDefinitivo,
   listarEmpleadosDisponibles,
 } = require("../controllers/usuarioController");
 
-//crud usuarios
+ 
+router.use(autenticar, requireRole(["Admin", "Jefatura"]));
+
+ 
 router.get("/", listarUsuarios);
+
+ 
 router.post("/", crearUsuario);
 
-//Get empleados disponibles para asignar usuario
+ 
 router.get("/empleados-disponibles", listarEmpleadosDisponibles);
 
-// Actualizar, desactivar y eliminar usuarios
+ 
 router.put("/:idUsuario", actualizarUsuario);
+
+ 
 router.delete("/:idUsuario", eliminarUsuario);
+
+ 
 router.delete("/:idUsuario/hard", eliminarUsuarioDefinitivo);
 
 module.exports = router;

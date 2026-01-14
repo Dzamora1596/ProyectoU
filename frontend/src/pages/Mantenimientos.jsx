@@ -1,4 +1,4 @@
-//pagina de mantenimientos principal
+//Mantenimientos.jsx
 import { Link } from "react-router-dom";
 import "../styles/autenticar.css";
 

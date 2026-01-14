@@ -1,53 +1,77 @@
-// Routas de Asistencia
+// asistenciaRoutes.js
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 
-const autorizarRoles = require("../middlewares/autorizarRoles");
-const asistenciaController = require("../controllers/asistenciaController");
+const autenticarMiddleware = require("../middlewares/autenticarMiddleware");
+const requireRole = require("../middlewares/requireRole");
 
-//Configuración de rutas de asistencia
-router.get(
-  "/colaboradores",
-  autorizarRoles([1, 2, 3]),
-  asistenciaController.listarColaboradores
-);
-// Listar asistencias de un empleado en un rango de fechas
-router.get(
-  "/empleado/:empleadoId",
-  autorizarRoles([1, 2, 3]),
-  asistenciaController.listarAsistenciasPorEmpleado
-);
+const {
+  listarAsistencias,
+  obtenerAsistenciaPorId,
+  cambiarEstadoAsistencia,
+  validarRangoAsistencias, 
+  listarNoRegistradas,     
+} = require("../controllers/asistenciaController");
 
-//CRUD de Asistencia 
+
+const { importarDesdeExcel } = require("../controllers/asistenciaImportController");
+
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, 
+  },
+});
+
+
 router.post(
+  "/importar-excel",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
+  upload.single("file"),
+  importarDesdeExcel
+);
+
+
+router.put(
+  "/validar-rango",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
+  validarRangoAsistencias
+);
+
+
+router.get(
+  "/no-registradas",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
+  listarNoRegistradas
+);
+
+
+router.get(
   "/",
-  autorizarRoles([1, 2]),
-  asistenciaController.crearAsistencia
-);
-// Actualizar una asistencia existente
-router.put(
-  "/:idAsistencia",
-  autorizarRoles([1, 2]),
-  asistenciaController.actualizarAsistencia
-);
-// Eliminar una asistencia 
-router.delete(
-  "/:idAsistencia",
-  autorizarRoles([1, 2]),
-  asistenciaController.eliminarAsistencia
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
+  listarAsistencias
 );
 
-// Validar asistencias
-router.post(
-  "/validar-periodo",
-  autorizarRoles([1, 2, 3]),
-  asistenciaController.validarTodoPeriodo
+
+router.get(
+  "/:id",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
+  obtenerAsistenciaPorId
 );
-// Validar un lote de asistencias
+
+
 router.put(
-  "/validar-lote",
-  autorizarRoles([1, 2, 3]),
-  asistenciaController.validarLote
+  "/:id/estado",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
+  cambiarEstadoAsistencia
 );
 
 module.exports = router;

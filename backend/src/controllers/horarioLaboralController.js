@@ -1,7 +1,7 @@
-// archivo para gestionar horarios laborales
+// horarioLaboralController.js
 const db = require("../config/db");
 
-// Helpers que convierten valores bit a booleanos para mayor compatibilidad
+
 
 function bitToBool(v) {
   if (v === null || v === undefined) return false;
@@ -30,7 +30,7 @@ function toBit01(v, defaultValue = 1) {
   return defaultValue;
 }
 
-// GET para listar todos los horarios laborales
+
 
 const listarHorarios = async (req, res) => {
   try {
@@ -63,7 +63,7 @@ const listarHorarios = async (req, res) => {
   }
 };
 
-// POST para crear un nuevo horario laboral
+
 const crearHorario = async (req, res) => {
   try {
     const descripcion = String(req.body?.descripcion ?? "").trim();
@@ -97,7 +97,7 @@ const crearHorario = async (req, res) => {
   }
 };
 
-// PUT para actualizar un horario laboral existente
+
 const actualizarHorario = async (req, res) => {
   try {
     const idHorarioLaboral = Number(req.params.idHorarioLaboral);
@@ -164,7 +164,7 @@ const actualizarHorario = async (req, res) => {
   }
 };
 
-// DELETE para desactivar un horario laboral
+
 const eliminarHorario = async (req, res) => {
   try {
     const idHorarioLaboral = Number(req.params.idHorarioLaboral);

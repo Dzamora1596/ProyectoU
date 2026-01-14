@@ -1,14 +1,14 @@
-//Servicio para manejar empleados y horarios laborales
+//empleadoService.js
 import axios from "axios";
 
 const api = axios.create({
   baseURL: "http://localhost:4000/api",
 });
 
-// Empleados
+ 
 export const listarEmpleados = async () => {
   const { data } = await api.get("/empleados");
-  return data; // { ok, empleados }
+  return data;
 };
 
 export const crearEmpleado = async (payload) => {
@@ -24,10 +24,4 @@ export const actualizarEmpleado = async (idEmpleado, payload) => {
 export const eliminarEmpleado = async (idEmpleado) => {
   const { data } = await api.delete(`/empleados/${idEmpleado}`);
   return data;
-};
-
-// Horarios laborales en combo box
-export const obtenerHorarios = async () => {
-  const { data } = await api.get("/empleados/horarios");
-  return data; 
 };

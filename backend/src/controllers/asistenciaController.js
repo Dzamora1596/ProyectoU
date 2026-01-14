@@ -1,402 +1,338 @@
-// Codigo para el controllador de asistencias
+// asistenciaController.js
 const db = require("../config/db");
 
-//helpers encargados de normalizar y convertir datos
 
-function bitToBool(v) {
-  if (v === null || v === undefined) return false;
-  if (typeof v === "boolean") return v;
-  if (typeof v === "number") return v === 1;
-  if (Buffer.isBuffer(v)) return v[0] === 1;
-  const s = String(v).toLowerCase().trim();
-  return s === "1" || s === "true" || s === "si" || s === "sí";
+function normalizarEstado(estado) {
+  const e = String(estado || "").trim().toLowerCase();
+  if (e === "validada") return "Validada";
+  if (e === "rechazada") return "Rechazada";
+  if (e === "pendiente") return "Pendiente";
+  return "";
 }
 
-function toDate(v) {
-  const s = String(v ?? "").trim();
-  return s.slice(0, 10); // Año-Mes-Día
+function derivarEstado(validado, observacion) {
+  if (Number(validado) === 1) return "Validada";
+  const obs = String(observacion || "");
+  if (obs.toUpperCase().startsWith("RECHAZADA:")) return "Rechazada";
+  return "Pendiente";
 }
 
-function toTime(v) {
-  const s = String(v ?? "").trim();
-  if (!s) return "00:00:00";
-  if (/^\d{2}:\d{2}$/.test(s)) return `${s}:00`;
-  if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
-  return "00:00:00";
-}
 
-function normalizarPayload(body) {
-  const ausente = !!body.ausente;
-
-  const entrada = ausente ? "00:00:00" : toTime(body.entrada);
-  const salida = ausente ? "00:00:00" : toTime(body.salida);
-
-  // si ausente => tardia = 0
-  const tardia = ausente ? false : !!body.tardia;
-
-  const validado = !!body.validado;
-  const observacion = String(body.observacion ?? "");
-
-  return { entrada, salida, ausente, tardia, validado, observacion };
-}
-
-function getEmpleadoIdFromBody(body) {
-  // Me permite aceptar varias variantes de nombres
-  return Number(body?.Empleado_idEmpleado ?? body?.empleadoId ?? body?.EmpleadoId ?? 0);
-}
-
-// endpoints para las rutas de asistencias
-
-//Get asistencias de colaboradores 
-const listarColaboradores = async (req, res) => {
+async function listarAsistencias(req, res, next) {
   try {
-    const buscar = String(req.query.buscar ?? "").trim();
-    const like = `%${buscar}%`;
+    const { empleadoId, q, estado, fecha, fechaDesde, fechaHasta, periodoId } = req.query;
 
-    const [rows] = await db.query(
-      `
-      SELECT
-        e.idEmpleado,
-        p.idPersona,
-        p.Nombre,
-        p.Apellido1,
-        p.Apellido2
-      FROM Empleado e
-      INNER JOIN Persona p ON p.idPersona = e.Persona_idPersona
-      WHERE e.Activo = 1
-        AND p.Activo = 1
-        AND (
-          ? = '' OR
-          CAST(e.idEmpleado AS CHAR) LIKE ? OR
-          CAST(p.idPersona AS CHAR) LIKE ? OR
-          CONCAT(p.Nombre,' ',p.Apellido1,' ',p.Apellido2) LIKE ?
-        )
-      ORDER BY e.idEmpleado ASC
-      `,
-      [buscar, like, like, like]
-    );
+    const filtros = [];
+    const params = [];
+    filtros.push("a.Activo = 1");
 
-    const colaboradores = rows.map((r) => ({
-      idEmpleado: r.idEmpleado,
-      personaId: r.idPersona,
-      nombreCompleto: `${r.Nombre} ${r.Apellido1} ${r.Apellido2}`.trim(),
-    }));
-
-    return res.json({ ok: true, colaboradores });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error listando colaboradores",
-      error: String(e),
-    });
-  }
-};
-
-//Get asistencias por empleado y rango de fechas
-const listarAsistenciasPorEmpleado = async (req, res) => {
-  try {
-    const empleadoId = Number(req.params.empleadoId);
-    const { desde, hasta } = req.query;
-
-    if (!empleadoId || !desde || !hasta) {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "Faltan parámetros: empleadoId, desde, hasta",
-      });
+    if (empleadoId) {
+      filtros.push("a.Empleado_idEmpleado = ?");
+      params.push(Number(empleadoId));
     }
 
+    if (periodoId) {
+      filtros.push("a.Catalogo_Periodo_idCatalogo_Periodo = ?");
+      params.push(Number(periodoId));
+    }
+
+    if (fecha) {
+      filtros.push("a.Fecha = ?");
+      params.push(fecha);
+    } else {
+      if (fechaDesde) {
+        filtros.push("a.Fecha >= ?");
+        params.push(fechaDesde);
+      }
+      if (fechaHasta) {
+        filtros.push("a.Fecha <= ?");
+        params.push(fechaHasta);
+      }
+    }
+
+    if (q) {
+      filtros.push("(p.Nombre LIKE ? OR p.Apellido1 LIKE ? OR p.Apellido2 LIKE ?)");
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+
+    if (estado) {
+      const est = normalizarEstado(estado);
+      if (est === "Validada") filtros.push("a.Validado = 1");
+      else if (est === "Rechazada") filtros.push("a.Validado = 0 AND a.Observacion LIKE 'RECHAZADA:%'");
+      else if (est === "Pendiente") filtros.push("a.Validado = 0 AND a.Observacion NOT LIKE 'RECHAZADA:%'");
+      else return res.status(400).json({ ok: false, mensaje: "Estado inválido" });
+    }
+
+    const where = filtros.length ? `WHERE ${filtros.join(" AND ")}` : "";
+
+    const sql = `
+      SELECT
+        a.idAsistencia,
+        a.Empleado_idEmpleado,
+        CONCAT(p.Nombre, ' ', p.Apellido1, ' ', p.Apellido2) AS EmpleadoNombre,
+        a.Fecha,
+        a.Entrada,
+        a.Salida,
+        a.Tardia,
+        a.Ausente,
+        a.Validado,
+        a.Observacion,
+        a.Catalogo_Periodo_idCatalogo_Periodo,
+        CASE
+          WHEN a.Validado = 1 THEN 'Validada'
+          WHEN a.Validado = 0 AND a.Observacion LIKE 'RECHAZADA:%' THEN 'Rechazada'
+          ELSE 'Pendiente'
+        END AS Estado
+      FROM Asistencia a
+      JOIN Empleado e ON e.idEmpleado = a.Empleado_idEmpleado
+      JOIN Persona p ON p.idPersona = e.Persona_idPersona
+      ${where}
+      ORDER BY a.Fecha DESC, EmpleadoNombre ASC
+    `;
+
+    const [rows] = await db.query(sql, params);
+    return res.json(rows);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+
+async function obtenerAsistenciaPorId(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+
+    const sql = `
+      SELECT
+        a.*,
+        CONCAT(p.Nombre, ' ', p.Apellido1, ' ', p.Apellido2) AS EmpleadoNombre
+      FROM Asistencia a
+      JOIN Empleado e ON e.idEmpleado = a.Empleado_idEmpleado
+      JOIN Persona p ON p.idPersona = e.Persona_idPersona
+      WHERE a.idAsistencia = ? AND a.Activo = 1
+      LIMIT 1
+    `;
+
+    const [rows] = await db.query(sql, [id]);
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, mensaje: "Asistencia no encontrada" });
+    }
+
+    const a = rows[0];
+    return res.json({ ...a, Estado: derivarEstado(a.Validado, a.Observacion) });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+
+
+async function cambiarEstadoAsistencia(req, res, next) {
+  let conn;
+  try {
+    const idAsistencia = Number(req.params.id);
+    const estado = normalizarEstado(req.body?.estado);
+    const motivo = String(req.body?.motivo || "").trim();
+    const idUsuario = req.usuario?.idUsuario;
+
+    if (!estado) return res.status(400).json({ ok: false, mensaje: "Estado inválido" });
+    if (estado === "Rechazada" && !motivo)
+      return res.status(400).json({ ok: false, mensaje: "Motivo requerido para rechazar" });
+    if (!idUsuario) return res.status(401).json({ ok: false, mensaje: "Usuario no autenticado" });
+
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+
+    const [curRows] = await conn.query(
+      "SELECT Validado, Observacion FROM Asistencia WHERE idAsistencia = ? AND Activo = 1 FOR UPDATE",
+      [idAsistencia]
+    );
+
+    if (!curRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ ok: false, mensaje: "Asistencia no encontrada" });
+    }
+
+    const obsActual = String(curRows[0].Observacion || "");
+    const obsSinPrefijoRechazo = obsActual.replace(/^RECHAZADA:\s*/i, "").trim();
+
+    let nuevoValidado = 0;
+    let nuevaObs = obsActual;
+
+    if (estado === "Validada") {
+      nuevoValidado = 1;
+      nuevaObs = obsSinPrefijoRechazo || "Validada";
+      await conn.query(
+        `
+        INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Activo)
+        VALUES (?, ?, 1)
+        ON DUPLICATE KEY UPDATE
+          Usuario_idUsuario = VALUES(Usuario_idUsuario),
+          Fecha_Validacion = CURRENT_TIMESTAMP,
+          Activo = 1
+        `,
+        [idAsistencia, idUsuario]
+      );
+    }
+
+    if (estado === "Rechazada") {
+      nuevoValidado = 0;
+      nuevaObs = `RECHAZADA: ${motivo}`;
+      await conn.query(
+        "UPDATE Validacion_Asistencia SET Activo = 0 WHERE Asistencia_idAsistencia = ?",
+        [idAsistencia]
+      );
+    }
+
+    if (estado === "Pendiente") {
+      nuevoValidado = 0;
+      nuevaObs = obsSinPrefijoRechazo;
+      await conn.query(
+        "UPDATE Validacion_Asistencia SET Activo = 0 WHERE Asistencia_idAsistencia = ?",
+        [idAsistencia]
+      );
+    }
+
+    await conn.query(
+      "UPDATE Asistencia SET Validado = ?, Observacion = ? WHERE idAsistencia = ?",
+      [nuevoValidado, nuevaObs, idAsistencia]
+    );
+
+    await conn.commit();
+    return res.json({ ok: true, mensaje: "Estado actualizado", estado });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return next(error);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+
+
+async function validarRangoAsistencias(req, res, next) {
+  let conn;
+  try {
+    const fechaInicio = String(req.body?.fechaInicio || "").trim();
+    const fechaFin = String(req.body?.fechaFin || "").trim();
+    const empleadoId = req.body?.empleadoId ? Number(req.body.empleadoId) : null;
+    const periodoId = req.body?.periodoId ? Number(req.body.periodoId) : null;
+    const idUsuario = req.usuario?.idUsuario;
+
+    if (!fechaInicio || !fechaFin)
+      return res.status(400).json({ ok: false, mensaje: "fechaInicio y fechaFin son requeridas" });
+    if (fechaInicio > fechaFin)
+      return res.status(400).json({ ok: false, mensaje: "fechaInicio no puede ser mayor que fechaFin" });
+    if (!idUsuario)
+      return res.status(401).json({ ok: false, mensaje: "Usuario no autenticado" });
+
+    const filtros = [
+      "a.Activo = 1",
+      "a.Validado = 0",
+      "a.Observacion NOT LIKE 'RECHAZADA:%'",
+      "a.Fecha >= ?",
+      "a.Fecha <= ?",
+    ];
+    const params = [fechaInicio, fechaFin];
+
+    if (empleadoId) {
+      filtros.push("a.Empleado_idEmpleado = ?");
+      params.push(empleadoId);
+    }
+    if (periodoId) {
+      filtros.push("a.Catalogo_Periodo_idCatalogo_Periodo = ?");
+      params.push(periodoId);
+    }
+
+    const where = `WHERE ${filtros.join(" AND ")}`;
+
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+
+    const [idsRows] = await conn.query(`SELECT a.idAsistencia FROM Asistencia a ${where}`, params);
+    const ids = idsRows.map((r) => Number(r.idAsistencia)).filter(Boolean);
+
+    if (ids.length === 0) {
+      await conn.commit();
+      return res.json({ ok: true, mensaje: "No hay asistencias pendientes", totalValidadas: 0 });
+    }
+
+    await conn.query(
+      `
+      INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Activo)
+      SELECT a.idAsistencia, ?, 1 FROM Asistencia a ${where}
+      ON DUPLICATE KEY UPDATE Usuario_idUsuario = VALUES(Usuario_idUsuario),
+        Fecha_Validacion = CURRENT_TIMESTAMP,
+        Activo = 1
+      `,
+      [idUsuario, ...params]
+    );
+
+    const [upd] = await conn.query(
+      `
+      UPDATE Asistencia a
+      SET a.Validado = 1,
+          a.Observacion = CASE WHEN TRIM(a.Observacion) = '' THEN 'Validada' ELSE a.Observacion END
+      ${where}
+      `,
+      params
+    );
+
+    const totalValidadas = Number(upd?.affectedRows || 0);
+
+    const accionCorta = `Validar rango: ${fechaInicio} a ${fechaFin} (${totalValidadas})`;
+
+    await conn.query(
+      `
+      INSERT INTO Bitacora (Tabla_Afectada, IdRegistro, Accion_Realizada, Fecha_y_Hora, Usuario_idUsuario, Activo)
+      VALUES ('Asistencia', ?, ?, CURRENT_TIMESTAMP, ?, 1)
+      `,
+      [`RANGO:${fechaInicio}_${fechaFin}`, accionCorta.slice(0, 45), idUsuario]
+    );
+
+    await conn.commit();
+    return res.json({ ok: true, mensaje: "Validación por rango completada", totalValidadas });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return next(error);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
+
+
+async function listarNoRegistradas(req, res, next) {
+  try {
     const [rows] = await db.query(
       `
       SELECT
-        idAsistencia,
-        Empleado_idEmpleado,
+        idAsistenciaNoRegistrada AS id,
+        EmpleadoTexto AS EmpleadoNombre,
         Fecha,
         Entrada,
         Salida,
         Tardia,
         Ausente,
-        Validado,
         Observacion,
-        Activo
-      FROM Asistencia
-      WHERE Empleado_idEmpleado = ?
-        AND Activo = 1
-        AND Fecha BETWEEN ? AND ?
-      ORDER BY Fecha ASC
-      `,
-      [empleadoId, toDate(desde), toDate(hasta)]
-    );
-
-    //por cada fila, mapea el objeto asistencia
-    const asistencias = rows.map((r) => ({
-      idAsistencia: r.idAsistencia,
-      Empleado_idEmpleado: r.Empleado_idEmpleado,
-      fecha: String(r.Fecha).slice(0, 10),
-      entrada: r.Entrada ? String(r.Entrada) : "00:00:00",
-      salida: r.Salida ? String(r.Salida) : "00:00:00",
-      tardia: bitToBool(r.Tardia),
-      ausente: bitToBool(r.Ausente),
-      validado: bitToBool(r.Validado),
-      observacion: r.Observacion ?? "",
-      activo: bitToBool(r.Activo),
-    }));
-
-    return res.json({ ok: true, asistencias });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error listando asistencias",
-      error: String(e),
-    });
-  }
-};
-
-//Crear nueva asistencia
-const crearAsistencia = async (req, res) => {
-  try {
-    const Empleado_idEmpleado = getEmpleadoIdFromBody(req.body);
-    const fecha = toDate(req.body.fecha);
-
-    if (!Empleado_idEmpleado || !fecha) {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "Faltan datos requeridos: Empleado_idEmpleado y fecha",
-      });
-    }
-
-    // validar que el empleado exista
-    const [e] = await db.query(`SELECT idEmpleado FROM Empleado WHERE idEmpleado = ?`, [
-      Empleado_idEmpleado,
-    ]);
-    if (!e.length) {
-      return res.status(400).json({ ok: false, mensaje: "Empleado no existe." });
-    }
-    // normalizar payload, payload es un objeto con los datos de la asistencia
-    const payload = normalizarPayload(req.body);
-
-    // Confirma si existe una asistencia activa para esa fecha
-    const [ex] = await db.query(
-      `
-      SELECT idAsistencia
-      FROM Asistencia
-      WHERE Empleado_idEmpleado = ? AND Fecha = ? AND Activo = 1
-      LIMIT 1
-      `,
-      [Empleado_idEmpleado, fecha]
-    );
-
-    if (ex.length) {
-      const idAsistencia = ex[0].idAsistencia;
-
-      const [r] = await db.query(
-        `
-        UPDATE Asistencia
-        SET Entrada = ?,
-            Salida = ?,
-            Tardia = ?,
-            Ausente = ?,
-            Observacion = ?
-        WHERE idAsistencia = ?
-        `,
-        [
-          payload.entrada,
-          payload.salida,
-          payload.tardia ? 1 : 0,
-          payload.ausente ? 1 : 0,
-          payload.observacion,
-          idAsistencia,
-        ]
-      );
-
-      return res.json({
-        ok: true,
-        mensaje: "Asistencia actualizada (ya existía para esa fecha).",
-        idAsistencia,
-        afectados: r.affectedRows,
-      });
-    }
-
-    // Crear un nuevo registro de asistencia
-    const [result] = await db.query(
-      `
-      INSERT INTO Asistencia
-        (Empleado_idEmpleado, Fecha, Entrada, Salida, Tardia, Ausente, Validado, Observacion, Activo)
-      VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        Empleado_idEmpleado,
-        fecha,
-        payload.entrada,
-        payload.salida,
-        payload.tardia ? 1 : 0,
-        payload.ausente ? 1 : 0,
-        0,
-        payload.observacion,
-        1,
-      ]
-    );
-
-    return res.status(201).json({
-      ok: true,
-      mensaje: "Asistencia creada.",
-      idAsistencia: result.insertId,
-    });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error creando asistencia",
-      error: String(e),
-    });
-  }
-};
-
-//Put para actualizar la asistencia
-const actualizarAsistencia = async (req, res) => {
-  try {
-    const idAsistencia = Number(req.params.idAsistencia);
-    if (!idAsistencia) {
-      return res.status(400).json({ ok: false, mensaje: "idAsistencia inválido." });
-    }
-
-    const payload = normalizarPayload(req.body);
-
-    const [result] = await db.query(
-      `
-      UPDATE Asistencia
-      SET Entrada = ?,
-          Salida = ?,
-          Tardia = ?,
-          Ausente = ?,
-          Validado = ?,
-          Observacion = ?
-      WHERE idAsistencia = ?
-        AND Activo = 1
-      `,
-      [
-        payload.entrada,
-        payload.salida,
-        payload.tardia ? 1 : 0,
-        payload.ausente ? 1 : 0,
-        payload.validado ? 1 : 0,
-        payload.observacion,
-        idAsistencia,
-      ]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ ok: false, mensaje: "Registro no encontrado." });
-    }
-
-    return res.json({ ok: true, mensaje: "Asistencia actualizada." });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error actualizando asistencia",
-      error: String(e),
-    });
-  }
-};
-
-//Delete asistencia
-const eliminarAsistencia = async (req, res) => {
-  try {
-    const idAsistencia = Number(req.params.idAsistencia);
-
-    const [result] = await db.query(
-      `UPDATE Asistencia SET Activo = 0 WHERE idAsistencia = ?`,
-      [idAsistencia]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ ok: false, mensaje: "Registro no encontrado." });
-    }
-
-    return res.json({ ok: true, mensaje: "Registro desactivado." });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error desactivando asistencia",
-      error: String(e),
-    });
-  }
-};
-
-//Post para validar todas las asistencias por rango de fechas
-const validarTodoPeriodo = async (req, res) => {
-  try {
-    const { desde, hasta } = req.body;
-    if (!desde || !hasta) {
-      return res.status(400).json({ ok: false, mensaje: "Debe enviar desde y hasta." });
-    }
-
-    const [result] = await db.query(
-      `
-      UPDATE Asistencia
-      SET Validado = 1
+        Catalogo_Periodo_idCatalogo_Periodo AS periodoId
+      FROM Asistencia_NoRegistrada
       WHERE Activo = 1
-        AND Fecha BETWEEN ? AND ?
-      `,
-      [toDate(desde), toDate(hasta)]
+      ORDER BY Fecha DESC, EmpleadoTexto ASC
+      `
     );
-
-    return res.json({
-      ok: true,
-      mensaje: `Período validado. Registros afectados: ${result.affectedRows}.`,
-    });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error validando período",
-      error: String(e),
-    });
+    return res.json(rows);
+  } catch (error) {
+    return next(error);
   }
-};
+}
 
-//Post para validar un lote de asistencias, el lote es un array con idAsistencia y validado
-const validarLote = async (req, res) => {
-  try {
-    const cambios = req.body?.cambios ?? [];
 
-    if (!Array.isArray(cambios) || cambios.length === 0) {
-      return res.status(400).json({ ok: false, mensaje: "Debe enviar cambios[]" });
-    }
-
-    let afectados = 0;
-
-    for (const c of cambios) {
-      const id = Number(c.idAsistencia);
-      const validado = c.validado ? 1 : 0;
-
-      if (!id) continue;
-
-      const [r] = await db.query(
-        `UPDATE Asistencia SET Validado = ? WHERE idAsistencia = ? AND Activo = 1`,
-        [validado, id]
-      );
-
-      afectados += r.affectedRows;
-    }
-
-    return res.json({
-      ok: true,
-      mensaje: `Validaciones guardadas. Registros afectados: ${afectados}.`,
-    });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error guardando validaciones",
-      error: String(e),
-    });
-  }
-};
 
 module.exports = {
-  listarColaboradores,
-  listarAsistenciasPorEmpleado,
-  crearAsistencia,
-  actualizarAsistencia,
-  eliminarAsistencia,
-  validarTodoPeriodo,
-  validarLote,
+  listarAsistencias,
+  obtenerAsistenciaPorId,
+  cambiarEstadoAsistencia,
+  validarRangoAsistencias,
+  listarNoRegistradas, 
 };

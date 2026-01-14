@@ -1,4 +1,4 @@
-//Manejo de autorización según los roles
+//requireRole.js
 module.exports = (rolesPermitidos) => {
   return (req, res, next) => {
     if (!rolesPermitidos.includes(req.usuario.rol)) {

@@ -1,168 +1,132 @@
-//app para manejar rutas y autenticación básica
-import { useState } from "react";
+//App.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
+
+import AppLayout from "./layouts/AppLayout";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
 import Inicio from "./pages/Inicio";
+import RegistroPersonal from "./pages/RegistroPersonal";
+import Usuarios from "./pages/Usuarios";  
 
-import RegistroUsuarios from "./pages/RegistroUsuarios";
-import RegistrarPersona from "./pages/RegistrarPersona";
-import RegistrarEmpleados from "./pages/RegistrarEmpleados";
+ 
+import ValidarAsistencias from "./pages/asistencias/ValidarAsistencias";
 
-import ValidarAsistencias from "./pages/ValidarAsistencias";
-import RegistroAsistencias from "./pages/RegistroAsistencias";
-
-import Mantenimientos from "./pages/Mantenimientos";
-import MantenimientoPersonas from "./pages/MantenimientoPersonas";
-import MantenimientoEmpleados from "./pages/MantenimientoEmpleados";
-import MantenimientoUsuarios from "./pages/MantenimientoUsuarios";
-import MantenimientoHorarios from "./pages/MantenimientoHorarios";
-import MantenimientoAsistencias from "./pages/MantenimientoAsistencias";
-import MantenimientoRoles from "./pages/MantenimientoRoles";
-
-function RutaPrivada({ user, children }) {
-  if (!user) return <Navigate to="/login" replace />;
-  return children;
+ 
+function Placeholder({ titulo }) {
+  return (
+    <div className="p-3">
+      <h3 style={{ margin: 0 }}>{titulo}</h3>
+      <p className="text-muted mt-2 mb-0">
+        Página en construcción.
+      </p>
+    </div>
+  );
 }
 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const logout = () => setUser(null);
-
   return (
     <Routes>
-      <Route
-        path="/"
-        element={user ? <Navigate to="/inicio" replace /> : <Navigate to="/login" replace />}
-      />
+       
+      <Route path="/login" element={<Login />} />
 
-      <Route
-        path="/login"
-        element={user ? <Navigate to="/inicio" replace /> : <Login onLogin={(u) => setUser(u)} />}
-      />
+       
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}>
+           
+          <Route path="/" element={<Inicio />} />
+          <Route path="/inicio" element={<Inicio />} />
 
-      <Route
-        path="/inicio"
-        element={
-          <RutaPrivada user={user}>
-            <Inicio user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
+           
+          <Route path="/registro-personal" element={<RegistroPersonal />} />
+          <Route path="/usuarios" element={<Usuarios />} />
 
-      <Route
-        path="/registro"
-        element={
-          <RutaPrivada user={user}>
-            <RegistroUsuarios user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
+           
+          <Route
+            path="/asistencias/validar"
+            element={<ValidarAsistencias />}
+          />
+          <Route
+            path="/asistencias/registro"
+            element={<Placeholder titulo="Registrar/ajustar asistencias" />}
+          />
 
-      <Route
-        path="/registrar-persona"
-        element={
-          <RutaPrivada user={user}>
-            <RegistrarPersona user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
+           
+          <Route
+            path="/planilla/calcular-salarios"
+            element={<Placeholder titulo="Calcular salarios" />}
+          />
+          <Route
+            path="/planilla/horas-extra"
+            element={<Placeholder titulo="Horas extra" />}
+          />
+          <Route
+            path="/planilla/deducciones"
+            element={<Placeholder titulo="Deducciones" />}
+          />
+          <Route
+            path="/planilla/adelantos"
+            element={<Placeholder titulo="Adelantos" />}
+          />
+          <Route
+            path="/planilla/aguinaldo"
+            element={<Placeholder titulo="Aguinaldo" />}
+          />
+          <Route
+            path="/planilla/incapacidades"
+            element={<Placeholder titulo="Incapacidades" />}
+          />
+          <Route
+            path="/planilla/liquidacion"
+            element={<Placeholder titulo="Liquidación" />}
+          />
 
-      <Route
-        path="/registrar-empleados"
-        element={
-          <RutaPrivada user={user}>
-            <RegistrarEmpleados user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
+           
+          <Route
+            path="/permisos"
+            element={<Placeholder titulo="Permisos" />}
+          />
+          <Route
+            path="/vacaciones"
+            element={<Placeholder titulo="Vacaciones" />}
+          />
 
-      {/* Registro de asistencias */}
-      <Route
-        path="/asistencias/registro"
-        element={
-          <RutaPrivada user={user}>
-            <RegistroAsistencias user={user} />
-          </RutaPrivada>
-        }
-      />
+           
+          <Route
+            path="/consultas"
+            element={<Placeholder titulo="Consultas" />}
+          />
+          <Route
+            path="/reportes"
+            element={<Placeholder titulo="Reportes" />}
+          />
+          <Route
+            path="/mantenimientos"
+            element={<Placeholder titulo="Mantenimientos" />}
+          />
 
-      {/* Validar asistencia */}
-      <Route
-        path="/asistencias/validar"
-        element={
-          <RutaPrivada user={user}>
-            <ValidarAsistencias user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
-{/* Mantenimientos */}
-      <Route
-        path="/mantenimientos"
-        element={
-          <RutaPrivada user={user}>
-            <Mantenimientos user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
-{/* Mantenimiento personas */}
-      <Route
-        path="/mantenimientos/personas"
-        element={
-          <RutaPrivada user={user}>
-            <MantenimientoPersonas user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
-{/* Mantenimiento empleados */}
-      <Route
-        path="/mantenimientos/empleados"
-        element={
-          <RutaPrivada user={user}>
-            <MantenimientoEmpleados user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
-{/* Mantenimiento usuarios */}
-      <Route
-        path="/mantenimientos/usuarios"
-        element={
-          <RutaPrivada user={user}>
-            <MantenimientoUsuarios user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
-{/* Mantenimiento horarios */}
-      <Route
-        path="/mantenimientos/horarios"
-        element={
-          <RutaPrivada user={user}>
-            <MantenimientoHorarios user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
+           
+          <Route
+            path="/solicitudes/permisos"
+            element={<Placeholder titulo="Solicitar permiso" />}
+          />
+          <Route
+            path="/solicitudes/vacaciones"
+            element={<Placeholder titulo="Solicitar vacaciones" />}
+          />
+          <Route
+            path="/solicitudes/adelantos"
+            element={<Placeholder titulo="Solicitar adelanto" />}
+          />
+          <Route
+            path="/mi-info"
+            element={<Placeholder titulo="Mi información" />}
+          />
+        </Route>
+      </Route>
 
-      {/* Mantenimiento asistencia */}
-      <Route
-        path="/mantenimientos/asistencias"
-        element={
-          <RutaPrivada user={user}>
-            <MantenimientoAsistencias user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
-
-      {/* Mantenimiento de roles */}
-      <Route
-        path="/mantenimientos/roles"
-        element={
-          <RutaPrivada user={user}>
-            <MantenimientoRoles user={user} onLogout={logout} />
-          </RutaPrivada>
-        }
-      />
-
-      <Route path="*" element={<Navigate to="/" replace />} />
+       
+      <Route path="*" element={<Navigate to="/inicio" replace />} />
     </Routes>
   );
 }

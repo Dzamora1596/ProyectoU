@@ -1,4 +1,4 @@
-//Servicio para manejar autenticación y usuarios
+//autenticarService.js
 import axios from "axios";
 
 const API = "http://localhost:4000/api/autenticar";
@@ -13,7 +13,7 @@ export const registrarUsuario = async (usuarioEncapsulado) => {
   return res.data;
 };
 
-// Get para obtener los roles disponibles
+ 
 export const obtenerRoles = async () => {
   const res = await axios.get(`${API}/roles`);
   return res.data;

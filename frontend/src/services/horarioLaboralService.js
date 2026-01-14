@@ -1,4 +1,4 @@
-//Servicio para manejar horarios laborales
+//horarioLaboralService.js
 import axios from "axios";
 
 const api = axios.create({

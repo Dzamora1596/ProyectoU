@@ -1,4 +1,4 @@
-// Modelo de Asistencia para la gestión de asistencias de empleados
+// asistenciaModel.js
 const db = require("../config/db");
 
 function toBit(v) {
@@ -11,13 +11,13 @@ function normDate(d) {
 
 function normTime(t) {
   const s = String(t ?? "").trim();
-  // valor convencionado
+  
   if (!s) return "00:00:00";
   if (s.length === 5) return `${s}:00`;
   if (s.length === 8) return s;
   return "00:00:00";
 }
-// Lista colaboradores activos, con opción de búsqueda por id o nombre completo
+
 async function listarColaboradores(buscar = "") {
   const q = String(buscar).trim();
   const like = `%${q}%`;
@@ -42,7 +42,7 @@ async function listarColaboradores(buscar = "") {
 
   return rows;
 }
-// Lista asistencias de un empleado en un rango de fechas
+
 async function listarAsistenciasPorEmpleado(empleadoId, desde, hasta) {
   const [rows] = await db.query(
     `
@@ -66,7 +66,7 @@ async function listarAsistenciasPorEmpleado(empleadoId, desde, hasta) {
 
   return rows;
 }
-// Busca las asistencias por empleado y fecha, devuelve el id de Asistencia o null
+
 async function buscarIdPorFecha(empleadoId, fecha) {
   const [rows] = await db.query(
     `
@@ -82,7 +82,7 @@ async function buscarIdPorFecha(empleadoId, fecha) {
   return rows[0]?.idAsistencia ?? null;
 }
 
-// Guarda los cambios de asistencias para un empleado, recibe un arreglo de objetos de cambios
+
 async function guardarCambios(empleadoId, cambios = []) {
   const nuevos = [];
 
@@ -115,7 +115,7 @@ async function guardarCambios(empleadoId, cambios = []) {
         [entrada, salida, tardia, ausente, validado, observacion, id, Number(empleadoId)]
       );
     } else {
-      // Evitar duplicados por fecha
+      
       const ya = await buscarIdPorFecha(empleadoId, fecha);
 
       if (ya) {
@@ -152,7 +152,7 @@ async function guardarCambios(empleadoId, cambios = []) {
 
   return nuevos;
 }
-//Valida que las asistencias en un periodo estén marcadas como validadas
+
 async function validarPeriodo(desde, hasta) {
   const [r] = await db.query(
     `

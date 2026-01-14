@@ -1,23 +1,23 @@
-// Rutas de Autenticación
+// autenticarRoutes.js
 const express = require("express");
 const router = express.Router();
 
-// Importar controladores de autenticación
 const {
   login,
   registrar,
   obtenerRoles,
 } = require("../controllers/autenticarController");
 
+const autenticar = require("../middlewares/autenticarMiddleware");
+const requireRole = require("../middlewares/requireRole");
 
 
-// POST login
 router.post("/login", login);
 
-// POST registrar nuevo usuario
-router.post("/registrar", registrar);
 
-// GET roles disponibles
-router.get("/roles", obtenerRoles);
+router.post("/registrar", autenticar, requireRole(["Admin", "Jefatura"]), registrar);
+
+
+router.get("/roles", autenticar, requireRole(["Admin", "Jefatura"]), obtenerRoles);
 
 module.exports = router;
