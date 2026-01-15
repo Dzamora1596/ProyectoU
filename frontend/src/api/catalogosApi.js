@@ -1,14 +1,14 @@
-// catalogosApi.js
-import cliente from "./cliente";
+// src/api/catalogosApi.js
+import api from "./axios";
 
- 
 export async function obtenerCatalogosRegistroPersonal() {
-   
-  return await cliente.get("/catalogos/registro-personal");
+  // GET /api/catalogos/registro-personal
+  const res = await api.get("/catalogos/registro-personal");
+  return res.data;
 }
 
- 
 export async function obtenerCatalogosRoles() {
-   
-  return await cliente.get("/catalogos/roles");
+  // GET /api/catalogos/roles
+  const res = await api.get("/catalogos/roles");
+  return res.data;
 }

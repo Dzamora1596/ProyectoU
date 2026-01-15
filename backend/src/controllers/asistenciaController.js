@@ -1,22 +1,25 @@
 // asistenciaController.js
 const db = require("../config/db");
 
-
 function normalizarEstado(estado) {
   const e = String(estado || "").trim().toLowerCase();
-  if (e === "validada") return "Validada";
-  if (e === "rechazada") return "Rechazada";
+  // ✅ Nuevo enfoque: solo Confirmada o Pendiente
+  if (e === "confirmada") return "Confirmada";
   if (e === "pendiente") return "Pendiente";
+  // Compat: si el frontend aún manda "validada"
+  if (e === "validada") return "Confirmada";
   return "";
 }
 
-function derivarEstado(validado, observacion) {
-  if (Number(validado) === 1) return "Validada";
-  const obs = String(observacion || "");
-  if (obs.toUpperCase().startsWith("RECHAZADA:")) return "Rechazada";
-  return "Pendiente";
+function derivarEstado(validado) {
+  return Number(validado) === 1 ? "Confirmada" : "Pendiente";
 }
 
+function limpiarObservacionVieja(obs) {
+  // ✅ Compat: si antes guardaban "RECHAZADA: ..."
+  const s = String(obs || "").trim();
+  return s.replace(/^RECHAZADA:\s*/i, "").trim();
+}
 
 async function listarAsistencias(req, res, next) {
   try {
@@ -55,11 +58,11 @@ async function listarAsistencias(req, res, next) {
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
 
+    // ✅ Estado SOLO depende de Validado
     if (estado) {
       const est = normalizarEstado(estado);
-      if (est === "Validada") filtros.push("a.Validado = 1");
-      else if (est === "Rechazada") filtros.push("a.Validado = 0 AND a.Observacion LIKE 'RECHAZADA:%'");
-      else if (est === "Pendiente") filtros.push("a.Validado = 0 AND a.Observacion NOT LIKE 'RECHAZADA:%'");
+      if (est === "Confirmada") filtros.push("a.Validado = 1");
+      else if (est === "Pendiente") filtros.push("a.Validado = 0");
       else return res.status(400).json({ ok: false, mensaje: "Estado inválido" });
     }
 
@@ -79,8 +82,7 @@ async function listarAsistencias(req, res, next) {
         a.Observacion,
         a.Catalogo_Periodo_idCatalogo_Periodo,
         CASE
-          WHEN a.Validado = 1 THEN 'Validada'
-          WHEN a.Validado = 0 AND a.Observacion LIKE 'RECHAZADA:%' THEN 'Rechazada'
+          WHEN a.Validado = 1 THEN 'Confirmada'
           ELSE 'Pendiente'
         END AS Estado
       FROM Asistencia a
@@ -96,7 +98,6 @@ async function listarAsistencias(req, res, next) {
     return next(error);
   }
 }
-
 
 async function obtenerAsistenciaPorId(req, res, next) {
   try {
@@ -119,25 +120,20 @@ async function obtenerAsistenciaPorId(req, res, next) {
     }
 
     const a = rows[0];
-    return res.json({ ...a, Estado: derivarEstado(a.Validado, a.Observacion) });
+    return res.json({ ...a, Estado: derivarEstado(a.Validado) });
   } catch (error) {
     return next(error);
   }
 }
-
-
 
 async function cambiarEstadoAsistencia(req, res, next) {
   let conn;
   try {
     const idAsistencia = Number(req.params.id);
     const estado = normalizarEstado(req.body?.estado);
-    const motivo = String(req.body?.motivo || "").trim();
     const idUsuario = req.usuario?.idUsuario;
 
     if (!estado) return res.status(400).json({ ok: false, mensaje: "Estado inválido" });
-    if (estado === "Rechazada" && !motivo)
-      return res.status(400).json({ ok: false, mensaje: "Motivo requerido para rechazar" });
     if (!idUsuario) return res.status(401).json({ ok: false, mensaje: "Usuario no autenticado" });
 
     conn = await db.getConnection();
@@ -153,19 +149,14 @@ async function cambiarEstadoAsistencia(req, res, next) {
       return res.status(404).json({ ok: false, mensaje: "Asistencia no encontrada" });
     }
 
-    const obsActual = String(curRows[0].Observacion || "");
-    const obsSinPrefijoRechazo = obsActual.replace(/^RECHAZADA:\s*/i, "").trim();
+    const nuevoValidado = estado === "Confirmada" ? 1 : 0;
 
-    let nuevoValidado = 0;
-    let nuevaObs = obsActual;
-
-    if (estado === "Validada") {
-      nuevoValidado = 1;
-      nuevaObs = obsSinPrefijoRechazo || "Validada";
+    if (nuevoValidado === 1) {
+      // ✅ Registrar/actualizar confirmación
       await conn.query(
         `
-        INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Activo)
-        VALUES (?, ?, 1)
+        INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Fecha_Validacion, Activo)
+        VALUES (?, ?, CURRENT_TIMESTAMP, 1)
         ON DUPLICATE KEY UPDATE
           Usuario_idUsuario = VALUES(Usuario_idUsuario),
           Fecha_Validacion = CURRENT_TIMESTAMP,
@@ -173,33 +164,33 @@ async function cambiarEstadoAsistencia(req, res, next) {
         `,
         [idAsistencia, idUsuario]
       );
-    }
 
-    if (estado === "Rechazada") {
-      nuevoValidado = 0;
-      nuevaObs = `RECHAZADA: ${motivo}`;
+      // ✅ Compat: limpiar observaciones viejas tipo "RECHAZADA:"
+      const obsLimpia = limpiarObservacionVieja(curRows[0].Observacion);
+
+      await conn.query(
+        "UPDATE Asistencia SET Validado = ?, Observacion = ? WHERE idAsistencia = ?",
+        [1, obsLimpia, idAsistencia]
+      );
+    } else {
+      // ✅ Volver a pendiente: desactiva la validación (no es rechazo)
       await conn.query(
         "UPDATE Validacion_Asistencia SET Activo = 0 WHERE Asistencia_idAsistencia = ?",
         [idAsistencia]
       );
-    }
 
-    if (estado === "Pendiente") {
-      nuevoValidado = 0;
-      nuevaObs = obsSinPrefijoRechazo;
-      await conn.query(
-        "UPDATE Validacion_Asistencia SET Activo = 0 WHERE Asistencia_idAsistencia = ?",
-        [idAsistencia]
-      );
+      await conn.query("UPDATE Asistencia SET Validado = ? WHERE idAsistencia = ?", [
+        0,
+        idAsistencia,
+      ]);
     }
-
-    await conn.query(
-      "UPDATE Asistencia SET Validado = ?, Observacion = ? WHERE idAsistencia = ?",
-      [nuevoValidado, nuevaObs, idAsistencia]
-    );
 
     await conn.commit();
-    return res.json({ ok: true, mensaje: "Estado actualizado", estado });
+    return res.json({
+      ok: true,
+      mensaje: "Estado actualizado",
+      estado: nuevoValidado === 1 ? "Confirmada" : "Pendiente",
+    });
   } catch (error) {
     if (conn) await conn.rollback();
     return next(error);
@@ -207,8 +198,6 @@ async function cambiarEstadoAsistencia(req, res, next) {
     if (conn) conn.release();
   }
 }
-
-
 
 async function validarRangoAsistencias(req, res, next) {
   let conn;
@@ -223,16 +212,10 @@ async function validarRangoAsistencias(req, res, next) {
       return res.status(400).json({ ok: false, mensaje: "fechaInicio y fechaFin son requeridas" });
     if (fechaInicio > fechaFin)
       return res.status(400).json({ ok: false, mensaje: "fechaInicio no puede ser mayor que fechaFin" });
-    if (!idUsuario)
-      return res.status(401).json({ ok: false, mensaje: "Usuario no autenticado" });
+    if (!idUsuario) return res.status(401).json({ ok: false, mensaje: "Usuario no autenticado" });
 
-    const filtros = [
-      "a.Activo = 1",
-      "a.Validado = 0",
-      "a.Observacion NOT LIKE 'RECHAZADA:%'",
-      "a.Fecha >= ?",
-      "a.Fecha <= ?",
-    ];
+    // ✅ Solo pendientes (Validado = 0)
+    const filtros = ["a.Activo = 1", "a.Validado = 0", "a.Fecha >= ?", "a.Fecha <= ?"];
     const params = [fechaInicio, fechaFin];
 
     if (empleadoId) {
@@ -254,33 +237,37 @@ async function validarRangoAsistencias(req, res, next) {
 
     if (ids.length === 0) {
       await conn.commit();
-      return res.json({ ok: true, mensaje: "No hay asistencias pendientes", totalValidadas: 0 });
+      return res.json({ ok: true, mensaje: "No hay asistencias pendientes", totalConfirmadas: 0 });
     }
 
+    // ✅ Registrar confirmación
     await conn.query(
       `
-      INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Activo)
-      SELECT a.idAsistencia, ?, 1 FROM Asistencia a ${where}
-      ON DUPLICATE KEY UPDATE Usuario_idUsuario = VALUES(Usuario_idUsuario),
+      INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Fecha_Validacion, Activo)
+      SELECT a.idAsistencia, ?, CURRENT_TIMESTAMP, 1
+      FROM Asistencia a ${where}
+      ON DUPLICATE KEY UPDATE
+        Usuario_idUsuario = VALUES(Usuario_idUsuario),
         Fecha_Validacion = CURRENT_TIMESTAMP,
         Activo = 1
       `,
       [idUsuario, ...params]
     );
 
+    // ✅ Confirmar asistencias + limpiar prefijo RECHAZADA viejo si existía
     const [upd] = await conn.query(
       `
       UPDATE Asistencia a
       SET a.Validado = 1,
-          a.Observacion = CASE WHEN TRIM(a.Observacion) = '' THEN 'Validada' ELSE a.Observacion END
+          a.Observacion = TRIM(REGEXP_REPLACE(a.Observacion, '^RECHAZADA:\\\\s*', ''))
       ${where}
       `,
       params
     );
 
-    const totalValidadas = Number(upd?.affectedRows || 0);
+    const totalConfirmadas = Number(upd?.affectedRows || 0);
 
-    const accionCorta = `Validar rango: ${fechaInicio} a ${fechaFin} (${totalValidadas})`;
+    const accionCorta = `Confirmar rango: ${fechaInicio} a ${fechaFin} (${totalConfirmadas})`;
 
     await conn.query(
       `
@@ -291,7 +278,7 @@ async function validarRangoAsistencias(req, res, next) {
     );
 
     await conn.commit();
-    return res.json({ ok: true, mensaje: "Validación por rango completada", totalValidadas });
+    return res.json({ ok: true, mensaje: "Confirmación por rango completada", totalConfirmadas });
   } catch (error) {
     if (conn) await conn.rollback();
     return next(error);
@@ -299,8 +286,6 @@ async function validarRangoAsistencias(req, res, next) {
     if (conn) conn.release();
   }
 }
-
-
 
 async function listarNoRegistradas(req, res, next) {
   try {
@@ -327,12 +312,10 @@ async function listarNoRegistradas(req, res, next) {
   }
 }
 
-
-
 module.exports = {
   listarAsistencias,
   obtenerAsistenciaPorId,
   cambiarEstadoAsistencia,
   validarRangoAsistencias,
-  listarNoRegistradas, 
+  listarNoRegistradas,
 };

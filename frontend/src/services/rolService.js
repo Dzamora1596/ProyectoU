@@ -16,7 +16,7 @@ export const setAuth = (user) => {
   _rolId = rolId || null;
 };
 
-// Interceptor para agregar el header x-rol-id en cada petición para autorizar roles en el backend
+ 
 api.interceptors.request.use(
   (config) => {
     config.headers = config.headers || {};
@@ -26,7 +26,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// CRUD de roles
+ 
 export const listarRoles = async () => {
   const { data } = await api.get("/roles");
   return data;

@@ -9,12 +9,11 @@ function formatHora(hhmmss) {
   return String(hhmmss).slice(0, 5);
 }
 
+// ✅ Solo Pendiente / Confirmada
 function EstadoBadge({ estado }) {
-  if (estado === "Validada") return <Badge bg="success">Validada</Badge>;
-  if (estado === "Rechazada") return <Badge bg="danger">Rechazada</Badge>;
+  if (estado === "Confirmada") return <Badge bg="success">Confirmada</Badge>;
   return <Badge bg="warning" text="dark">Pendiente</Badge>;
 }
-
 
 function normalizeEmpleadoRow(r) {
   const idEmpleado =
@@ -41,19 +40,17 @@ export default function ValidarAsistencias() {
   const [empleados, setEmpleados] = useState([]);
 
   const [fEmpleadoId, setFEmpleadoId] = useState("");
-  const [fEstado, setFEstado] = useState("");
+  const [fEstado, setFEstado] = useState(""); // "" | "Pendiente" | "Confirmada"
   const [fFechaDesde, setFFechaDesde] = useState("");
   const [fFechaHasta, setFFechaHasta] = useState("");
 
   const [show, setShow] = useState(false);
   const [detalle, setDetalle] = useState(null);
-  const [motivoRechazo, setMotivoRechazo] = useState("");
   const [accionLoading, setAccionLoading] = useState(false);
 
   const [showImport, setShowImport] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importEmpleadoId, setImportEmpleadoId] = useState("");
 
   const [errorMsg, setErrorMsg] = useState("");
   const [okMsg, setOkMsg] = useState("");
@@ -62,7 +59,6 @@ export default function ValidarAsistencias() {
     setErrorMsg("");
     setOkMsg("");
   }, []);
-
 
   const cargarEmpleados = useCallback(async () => {
     try {
@@ -92,7 +88,7 @@ export default function ValidarAsistencias() {
     try {
       const params = {};
       if (fEmpleadoId) params.empleadoId = fEmpleadoId;
-      if (fEstado) params.estado = fEstado;
+      if (fEstado) params.estado = fEstado; // ✅ backend ya entiende Confirmada/Pendiente
       if (fFechaDesde) params.fechaDesde = fFechaDesde;
       if (fFechaHasta) params.fechaHasta = fFechaHasta;
 
@@ -120,7 +116,6 @@ export default function ValidarAsistencias() {
   }, [fEmpleadoId, fEstado, fFechaDesde, fFechaHasta, limpiarMensajes]);
 
   useEffect(() => {
-    // ✅ ahora el combo de empleados SIEMPRE se llena aunque no haya asistencias
     cargarEmpleados();
     cargar();
   }, [cargarEmpleados, cargar]);
@@ -136,7 +131,6 @@ export default function ValidarAsistencias() {
       const asistencia = data?.asistencia ?? data;
 
       setDetalle(asistencia);
-      setMotivoRechazo("");
       setShow(true);
     } catch (err) {
       setErrorMsg(err?.response?.data?.mensaje || "Error obteniendo detalle");
@@ -145,18 +139,18 @@ export default function ValidarAsistencias() {
     }
   }, [limpiarMensajes]);
 
-  const cambiarEstado = useCallback(async (idAsistencia, estado, motivo) => {
+  // ✅ Solo Confirmar / Quitar confirmación
+  const cambiarEstado = useCallback(async (idAsistencia, estado) => {
     if (!idAsistencia) return;
 
     setAccionLoading(true);
     limpiarMensajes();
 
     try {
-      await api.put(`/asistencias/${idAsistencia}/estado`, { estado, motivo });
+      await api.put(`/asistencias/${idAsistencia}/estado`, { estado });
       setOkMsg(`Asistencia actualizada a: ${estado}`);
       setShow(false);
       setDetalle(null);
-      setMotivoRechazo("");
       await cargar();
     } catch (err) {
       setErrorMsg(err?.response?.data?.mensaje || "Error actualizando estado");
@@ -178,9 +172,6 @@ export default function ValidarAsistencias() {
       const form = new FormData();
       form.append("file", importFile);
 
-
-      if (importEmpleadoId) form.append("empleadoId", String(importEmpleadoId));
-
       const { data } = await api.post("/asistencias/importar-excel", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -192,7 +183,6 @@ export default function ValidarAsistencias() {
 
       setShowImport(false);
       setImportFile(null);
-      setImportEmpleadoId("");
 
       await cargar();
     } catch (err) {
@@ -200,7 +190,7 @@ export default function ValidarAsistencias() {
     } finally {
       setImportLoading(false);
     }
-  }, [importFile, importEmpleadoId, limpiarMensajes, cargar]);
+  }, [importFile, limpiarMensajes, cargar]);
 
   const columns = useMemo(
     () => [
@@ -238,7 +228,7 @@ export default function ValidarAsistencias() {
         field: "Estado",
         headerName: "Estado",
         flex: 1,
-        minWidth: 120,
+        minWidth: 130,
         renderCell: (p) => <EstadoBadge estado={p?.row?.Estado} />,
       },
       {
@@ -257,7 +247,8 @@ export default function ValidarAsistencias() {
         renderCell: (p) => {
           const row = p?.row;
           if (!row) return null;
-          const esPendiente = row.Estado === "Pendiente";
+
+          const esPendiente = row.Estado !== "Confirmada";
 
           return (
             <div style={{ display: "flex", gap: 8 }}>
@@ -265,27 +256,23 @@ export default function ValidarAsistencias() {
                 Ver
               </Button>
 
-              <Button
-                size="sm"
-                variant="success"
-                disabled={!esPendiente}
-                onClick={() => cambiarEstado(row.idAsistencia, "Validada")}
-              >
-                Validar
-              </Button>
-
-              <Button
-                size="sm"
-                variant="danger"
-                disabled={!esPendiente}
-                onClick={() => {
-                  setDetalle(row);
-                  setMotivoRechazo("");
-                  setShow(true);
-                }}
-              >
-                Rechazar
-              </Button>
+              {esPendiente ? (
+                <Button
+                  size="sm"
+                  variant="success"
+                  onClick={() => cambiarEstado(row.idAsistencia, "Confirmada")}
+                >
+                  Confirmar
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline-warning"
+                  onClick={() => cambiarEstado(row.idAsistencia, "Pendiente")}
+                >
+                  Quitar confirmación
+                </Button>
+              )}
             </div>
           );
         },
@@ -298,7 +285,7 @@ export default function ValidarAsistencias() {
     <div className="p-3">
       <Row className="mb-3 align-items-center">
         <Col>
-          <h4 className="mb-0">Validar Asistencias</h4>
+          <h4 className="mb-0">Confirmar Asistencias</h4>
         </Col>
         <Col className="text-end">
           <Button variant="primary" onClick={() => setShowImport(true)}>
@@ -329,8 +316,7 @@ export default function ValidarAsistencias() {
             <Form.Select value={fEstado} onChange={(e) => setFEstado(e.target.value)}>
               <option value="">Todos</option>
               <option value="Pendiente">Pendiente</option>
-              <option value="Validada">Validada</option>
-              <option value="Rechazada">Rechazada</option>
+              <option value="Confirmada">Confirmada</option>
             </Form.Select>
           </Col>
 
@@ -364,6 +350,7 @@ export default function ValidarAsistencias() {
         />
       </div>
 
+      {/* DETALLE */}
       <Modal show={show} onHide={() => setShow(false)} centered size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Detalle de asistencia</Modal.Title>
@@ -398,20 +385,9 @@ export default function ValidarAsistencias() {
                 </Col>
               </Row>
 
-              <Form.Group className="mb-3">
+              <Form.Group className="mb-0">
                 <Form.Label>Observación</Form.Label>
                 <Form.Control as="textarea" rows={2} value={detalle.Observacion || ""} readOnly />
-              </Form.Group>
-
-              <Form.Group>
-                <Form.Label>Motivo de rechazo</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={motivoRechazo}
-                  onChange={(e) => setMotivoRechazo(e.target.value)}
-                  placeholder="Escriba el motivo (requerido para rechazar)"
-                />
               </Form.Group>
             </>
           ) : (
@@ -425,35 +401,28 @@ export default function ValidarAsistencias() {
           </Button>
 
           {detalle ? (
-            <>
-              <Button
-                variant="success"
-                disabled={accionLoading || detalle.Estado === "Validada"}
-                onClick={() => cambiarEstado(detalle.idAsistencia, "Validada")}
-              >
-                Validar
-              </Button>
-
-              <Button
-                variant="danger"
-                disabled={accionLoading || motivoRechazo.trim().length === 0}
-                onClick={() => cambiarEstado(detalle.idAsistencia, "Rechazada", motivoRechazo)}
-              >
-                Rechazar
-              </Button>
-
+            detalle.Estado === "Confirmada" ? (
               <Button
                 variant="outline-warning"
-                disabled={accionLoading || detalle.Estado === "Pendiente"}
+                disabled={accionLoading}
                 onClick={() => cambiarEstado(detalle.idAsistencia, "Pendiente")}
               >
-                Volver a Pendiente
+                Quitar confirmación
               </Button>
-            </>
+            ) : (
+              <Button
+                variant="success"
+                disabled={accionLoading}
+                onClick={() => cambiarEstado(detalle.idAsistencia, "Confirmada")}
+              >
+                Confirmar
+              </Button>
+            )
           ) : null}
         </Modal.Footer>
       </Modal>
 
+      {/* IMPORTAR */}
       <Modal show={showImport} onHide={() => setShowImport(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Importar asistencias desde Excel</Modal.Title>
@@ -469,17 +438,10 @@ export default function ValidarAsistencias() {
             />
           </Form.Group>
 
-          <Form.Group>
-            <Form.Label>Empleado (opcional)</Form.Label>
-            <Form.Select value={importEmpleadoId} onChange={(e) => setImportEmpleadoId(e.target.value)}>
-              <option value="">No seleccionar</option>
-              {empleados.map((e) => (
-                <option key={e.idEmpleado} value={e.idEmpleado}>
-                  {e.nombre} (ID: {e.idEmpleado})
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
+          <div className="text-muted" style={{ fontSize: 13 }}>
+            El sistema intentará detectar el empleado desde el Excel (por ejemplo: <b>(3)</b>).
+            Si no se detecta, se registrará como no asignado.
+          </div>
         </Modal.Body>
 
         <Modal.Footer>

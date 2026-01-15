@@ -1,5 +1,5 @@
 //usuariosService.js
-import api from "../api/cliente";
+import api from "../api/axios";
 
  
 function buildQuery(params = {}) {

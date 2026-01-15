@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Container, Card, Form, Button, Alert, Spinner } from "react-bootstrap";
-import cliente from "../api/cliente";
+import cliente from "../api/axios";
 
 export default function Login() {
   const navigate = useNavigate();
