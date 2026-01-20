@@ -3,11 +3,9 @@ const db = require("../config/db");
 
 function normalizarEstado(estado) {
   const e = String(estado || "").trim().toLowerCase();
-  // ✅ Nuevo enfoque: solo Confirmada o Pendiente
   if (e === "confirmada") return "Confirmada";
   if (e === "pendiente") return "Pendiente";
-  // Compat: si el frontend aún manda "validada"
-  if (e === "validada") return "Confirmada";
+  if (e === "validada") return "Confirmada"; // compat
   return "";
 }
 
@@ -16,18 +14,17 @@ function derivarEstado(validado) {
 }
 
 function limpiarObservacionVieja(obs) {
-  // ✅ Compat: si antes guardaban "RECHAZADA: ..."
   const s = String(obs || "").trim();
   return s.replace(/^RECHAZADA:\s*/i, "").trim();
 }
 
+ 
 async function listarAsistencias(req, res, next) {
   try {
     const { empleadoId, q, estado, fecha, fechaDesde, fechaHasta, periodoId } = req.query;
 
-    const filtros = [];
+    const filtros = ["a.Activo = 1"];
     const params = [];
-    filtros.push("a.Activo = 1");
 
     if (empleadoId) {
       filtros.push("a.Empleado_idEmpleado = ?");
@@ -39,17 +36,18 @@ async function listarAsistencias(req, res, next) {
       params.push(Number(periodoId));
     }
 
+     
     if (fecha) {
-      filtros.push("a.Fecha = ?");
-      params.push(fecha);
+      filtros.push("DATE(a.Fecha) = ?");
+      params.push(String(fecha).trim());
     } else {
       if (fechaDesde) {
-        filtros.push("a.Fecha >= ?");
-        params.push(fechaDesde);
+        filtros.push("DATE(a.Fecha) >= ?");
+        params.push(String(fechaDesde).trim());
       }
       if (fechaHasta) {
-        filtros.push("a.Fecha <= ?");
-        params.push(fechaHasta);
+        filtros.push("DATE(a.Fecha) <= ?");
+        params.push(String(fechaHasta).trim());
       }
     }
 
@@ -58,7 +56,6 @@ async function listarAsistencias(req, res, next) {
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
 
-    // ✅ Estado SOLO depende de Validado
     if (estado) {
       const est = normalizarEstado(estado);
       if (est === "Confirmada") filtros.push("a.Validado = 1");
@@ -66,7 +63,7 @@ async function listarAsistencias(req, res, next) {
       else return res.status(400).json({ ok: false, mensaje: "Estado inválido" });
     }
 
-    const where = filtros.length ? `WHERE ${filtros.join(" AND ")}` : "";
+    const where = `WHERE ${filtros.join(" AND ")}`;
 
     const sql = `
       SELECT
@@ -89,11 +86,12 @@ async function listarAsistencias(req, res, next) {
       JOIN Empleado e ON e.idEmpleado = a.Empleado_idEmpleado
       JOIN Persona p ON p.idPersona = e.Persona_idPersona
       ${where}
-      ORDER BY a.Fecha DESC, EmpleadoNombre ASC
+      ORDER BY DATE(a.Fecha) DESC, EmpleadoNombre ASC
     `;
 
     const [rows] = await db.query(sql, params);
-    return res.json(rows);
+
+    return res.json({ ok: true, asistencias: rows });
   } catch (error) {
     return next(error);
   }
@@ -105,8 +103,21 @@ async function obtenerAsistenciaPorId(req, res, next) {
 
     const sql = `
       SELECT
-        a.*,
-        CONCAT(p.Nombre, ' ', p.Apellido1, ' ', p.Apellido2) AS EmpleadoNombre
+        a.idAsistencia,
+        a.Empleado_idEmpleado,
+        CONCAT(p.Nombre, ' ', p.Apellido1, ' ', p.Apellido2) AS EmpleadoNombre,
+        a.Fecha,
+        a.Entrada,
+        a.Salida,
+        a.Tardia,
+        a.Ausente,
+        a.Validado,
+        a.Observacion,
+        a.Catalogo_Periodo_idCatalogo_Periodo,
+        CASE
+          WHEN a.Validado = 1 THEN 'Confirmada'
+          ELSE 'Pendiente'
+        END AS Estado
       FROM Asistencia a
       JOIN Empleado e ON e.idEmpleado = a.Empleado_idEmpleado
       JOIN Persona p ON p.idPersona = e.Persona_idPersona
@@ -119,8 +130,7 @@ async function obtenerAsistenciaPorId(req, res, next) {
       return res.status(404).json({ ok: false, mensaje: "Asistencia no encontrada" });
     }
 
-    const a = rows[0];
-    return res.json({ ...a, Estado: derivarEstado(a.Validado) });
+    return res.json({ ok: true, asistencia: rows[0] });
   } catch (error) {
     return next(error);
   }
@@ -152,7 +162,6 @@ async function cambiarEstadoAsistencia(req, res, next) {
     const nuevoValidado = estado === "Confirmada" ? 1 : 0;
 
     if (nuevoValidado === 1) {
-      // ✅ Registrar/actualizar confirmación
       await conn.query(
         `
         INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Fecha_Validacion, Activo)
@@ -165,7 +174,6 @@ async function cambiarEstadoAsistencia(req, res, next) {
         [idAsistencia, idUsuario]
       );
 
-      // ✅ Compat: limpiar observaciones viejas tipo "RECHAZADA:"
       const obsLimpia = limpiarObservacionVieja(curRows[0].Observacion);
 
       await conn.query(
@@ -173,7 +181,6 @@ async function cambiarEstadoAsistencia(req, res, next) {
         [1, obsLimpia, idAsistencia]
       );
     } else {
-      // ✅ Volver a pendiente: desactiva la validación (no es rechazo)
       await conn.query(
         "UPDATE Validacion_Asistencia SET Activo = 0 WHERE Asistencia_idAsistencia = ?",
         [idAsistencia]
@@ -214,8 +221,8 @@ async function validarRangoAsistencias(req, res, next) {
       return res.status(400).json({ ok: false, mensaje: "fechaInicio no puede ser mayor que fechaFin" });
     if (!idUsuario) return res.status(401).json({ ok: false, mensaje: "Usuario no autenticado" });
 
-    // ✅ Solo pendientes (Validado = 0)
-    const filtros = ["a.Activo = 1", "a.Validado = 0", "a.Fecha >= ?", "a.Fecha <= ?"];
+     
+    const filtros = ["a.Activo = 1", "a.Validado = 0", "DATE(a.Fecha) >= ?", "DATE(a.Fecha) <= ?"];
     const params = [fechaInicio, fechaFin];
 
     if (empleadoId) {
@@ -240,7 +247,6 @@ async function validarRangoAsistencias(req, res, next) {
       return res.json({ ok: true, mensaje: "No hay asistencias pendientes", totalConfirmadas: 0 });
     }
 
-    // ✅ Registrar confirmación
     await conn.query(
       `
       INSERT INTO Validacion_Asistencia (Asistencia_idAsistencia, Usuario_idUsuario, Fecha_Validacion, Activo)
@@ -254,7 +260,6 @@ async function validarRangoAsistencias(req, res, next) {
       [idUsuario, ...params]
     );
 
-    // ✅ Confirmar asistencias + limpiar prefijo RECHAZADA viejo si existía
     const [upd] = await conn.query(
       `
       UPDATE Asistencia a
@@ -303,10 +308,11 @@ async function listarNoRegistradas(req, res, next) {
         Catalogo_Periodo_idCatalogo_Periodo AS periodoId
       FROM Asistencia_NoRegistrada
       WHERE Activo = 1
-      ORDER BY Fecha DESC, EmpleadoTexto ASC
+      ORDER BY DATE(Fecha) DESC, EmpleadoTexto ASC
       `
     );
-    return res.json(rows);
+
+    return res.json({ ok: true, asistencias: rows });
   } catch (error) {
     return next(error);
   }

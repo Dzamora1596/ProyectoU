@@ -39,7 +39,7 @@ function emptyForm() {
       apellido1: "",
       apellido2: "",
       generoId: "",
-      fechaNacimiento: "",  
+      fechaNacimiento: "",
       cantidadHijos: 0,
       activo: true,
     },
@@ -60,7 +60,6 @@ function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
- 
 function calcAgeFromYYYYMMDD(dateStr) {
   const s = String(dateStr || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return NaN;
@@ -68,7 +67,7 @@ function calcAgeFromYYYYMMDD(dateStr) {
   const [yy, mm, dd] = s.split("-").map((x) => Number(x));
   const today = new Date();
   const y = today.getFullYear();
-  const m = today.getMonth() + 1;  
+  const m = today.getMonth() + 1;
   const d = today.getDate();
 
   let age = y - yy;
@@ -77,25 +76,20 @@ function calcAgeFromYYYYMMDD(dateStr) {
 }
 
 export default function RegistroPersonal() {
-   
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
-   
   const [texto, setTexto] = useState("");
-  const [activo, setActivo] = useState("");  
+  const [activo, setActivo] = useState("");
 
-   
   const [showModal, setShowModal] = useState(false);
   const [mode, setMode] = useState("create"); // create | edit
   const [editingIdEmpleado, setEditingIdEmpleado] = useState(null);
 
-   
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-   
   const [cats, setCats] = useState({
     generos: [],
     cadenciasPago: [],
@@ -104,12 +98,10 @@ export default function RegistroPersonal() {
   });
   const [catsLoading, setCatsLoading] = useState(false);
 
-   
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [idEmpleadoToDisable, setIdEmpleadoToDisable] = useState(null);
 
-   
   useEffect(() => {
     (async () => {
       try {
@@ -117,9 +109,13 @@ export default function RegistroPersonal() {
 
         const r = await obtenerCatalogosRegistroPersonal();
 
-        const raw = (r?.data?.ok ? r.data : null) || r?.data?.data || r?.data || {};
+        const raw =
+          (r?.ok ? r : null) ||
+          (r?.data?.ok ? r.data : null) ||
+          r?.data ||
+          r ||
+          {};
 
-         
         const normGenero = (x) => ({
           id: x?.id ?? x?.idCatalogo_Genero ?? x?.idCatalogoGenero ?? x?.idGenero ?? "",
           descripcion:
@@ -185,7 +181,6 @@ export default function RegistroPersonal() {
     })();
   }, []);
 
-   
   const cargar = useCallback(async () => {
     setLoading(true);
     setErrorMsg("");
@@ -195,7 +190,7 @@ export default function RegistroPersonal() {
         activo: activo === "" ? undefined : activo,
       });
 
-      const data = Array.isArray(r?.data) ? r.data : [];
+      const data = Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : [];
       setRows(data);
     } catch (e) {
       setErrorMsg(String(e?.message || e));
@@ -231,7 +226,7 @@ export default function RegistroPersonal() {
 
     try {
       const r = await obtenerRegistroPersonalPorId(idEmpleado);
-      const data = r?.data;
+      const data = r?.data ? r.data : r;
 
       const next = emptyForm();
 
@@ -249,7 +244,7 @@ export default function RegistroPersonal() {
         ...data?.persona,
         activo: toBool(data?.persona?.activo),
         generoId: data?.persona?.generoId ?? "",
-        fechaNacimiento: String(data?.persona?.fechaNacimiento || "").slice(0, 10), // ✅ NUEVO
+        fechaNacimiento: String(data?.persona?.fechaNacimiento || "").slice(0, 10),
       };
 
       next.telefonos =
@@ -276,7 +271,6 @@ export default function RegistroPersonal() {
     }
   }, []);
 
-   
   const onDesactivar = useCallback((idEmpleado) => {
     setIdEmpleadoToDisable(idEmpleado);
     setShowConfirm(true);
@@ -314,7 +308,6 @@ export default function RegistroPersonal() {
     if (!String(p.apellido2 || "").trim()) return "Debe indicar apellido2.";
     if (!String(p.generoId || "").trim()) return "Debe seleccionar género.";
 
-    
     const fn = String(p.fechaNacimiento || "").trim();
     if (!fn) return "Debe indicar fecha de nacimiento.";
     const age = calcAgeFromYYYYMMDD(fn);
@@ -364,7 +357,7 @@ export default function RegistroPersonal() {
         apellido1: String(form.persona.apellido1).trim(),
         apellido2: String(form.persona.apellido2).trim(),
         generoId: Number(form.persona.generoId),
-        fechaNacimiento: String(form.persona.fechaNacimiento).slice(0, 10), // ✅ NUEVO
+        fechaNacimiento: String(form.persona.fechaNacimiento).slice(0, 10),
         cantidadHijos: Number(form.persona.cantidadHijos),
         activo: form.persona.activo ? 1 : 0,
       },
@@ -408,12 +401,11 @@ export default function RegistroPersonal() {
     }
   }, [mode, editingIdEmpleado, form, cargar, validar]);
 
-   
   const gridRows = useMemo(
     () =>
       rows.map((r) => ({
         ...r,
-        id: r.idEmpleado, // DataGrid usa "id"
+        id: r.idEmpleado,
         nombreCompleto: `${r.nombre ?? ""} ${r.apellido1 ?? ""} ${r.apellido2 ?? ""}`.trim(),
         activoOk: toBool(r.empleadoActivo) && toBool(r.personaActivo),
         fechaIngresoFmt: r.fechaIngreso ? String(r.fechaIngreso).slice(0, 10) : "",
@@ -421,7 +413,6 @@ export default function RegistroPersonal() {
     [rows]
   );
 
-   
   const columns = useMemo(
     () => [
       {
@@ -489,7 +480,6 @@ export default function RegistroPersonal() {
     [onEditar, onDesactivar]
   );
 
-   
   const setPersona = (key, value) =>
     setForm((prev) => ({ ...prev, persona: { ...prev.persona, [key]: value } }));
 
@@ -606,7 +596,6 @@ export default function RegistroPersonal() {
         </div>
       </div>
 
-       
       <Modal show={showModal} onHide={cerrarModal} size="lg" backdrop="static" centered>
         <Modal.Header closeButton={!saving}>
           <Modal.Title>
@@ -666,7 +655,6 @@ export default function RegistroPersonal() {
               </Form.Group>
             </Col>
 
-             
             <Col md={4}>
               <Form.Group>
                 <Form.Label>Fecha de nacimiento</Form.Label>
@@ -928,14 +916,13 @@ export default function RegistroPersonal() {
         </Modal.Footer>
       </Modal>
 
-       
       <Modal show={showConfirm} onHide={cerrarConfirm} centered backdrop="static">
         <Modal.Header closeButton={!confirmLoading}>
           <Modal.Title>Confirmar desactivación</Modal.Title>
         </Modal.Header>
 
         <Modal.Body>
-          ¿Seguro que querés desactivar el empleado <b>#{idEmpleadoToDisable}</b>?
+          ¿Seguro que desea desactivar el empleado <b>#{idEmpleadoToDisable}</b>?
           <div className="text-muted mt-2" style={{ fontSize: 13 }}>
             Esto es una desactivación lógica (soft delete).
           </div>

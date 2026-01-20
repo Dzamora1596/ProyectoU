@@ -36,6 +36,12 @@ function puedeAcceder(user) {
     puedeVerReportes: esAdmin || esJefatura || esPlanilla,
     puedeSolicitar: esColaborador,
     puedeVerSoloMiInfo: esColaborador,
+
+     
+     puedeVerHorarioEmpleado: esAdmin || esJefatura || esPlanilla,
+
+     
+    puedeVerCatalogosHorario: esAdmin || esJefatura,
   };
 }
 
@@ -66,9 +72,7 @@ function SidebarContent({
           <span className="fw-semibold text-truncate">
             {user?.nombreUsuario || "Usuario"}
           </span>
-          <small className="text-muted text-truncate">
-            {perms.rolTexto || ""}
-          </small>
+          <small className="text-muted text-truncate">{perms.rolTexto || ""}</small>
         </div>
 
         <Button
@@ -114,7 +118,6 @@ function SidebarContent({
               }
               title={collapsed ? it.label : undefined}
             >
-              {/* ✅ CAMBIO: Ahora usa la clase de Bootstrap Icons */}
               <span className="menu-icon">
                 <i className={it.icon}></i>
               </span>
@@ -149,7 +152,6 @@ export default function Menu({ user, onLogout }) {
 
   const items = [];
 
-  // --- SECCIONES E ICONOS ---
   items.push({ to: "/inicio", label: "Inicio", icon: "bi bi-house-door" });
 
   if (perms.puedeRegistrarPersonal) {
@@ -164,13 +166,36 @@ export default function Menu({ user, onLogout }) {
     items.push({ to: "/usuarios", label: "Usuarios", icon: "bi bi-shield-lock" });
   }
 
+   
   if (perms.puedeRegistrarAsistencias || perms.puedeValidarAsistencias) {
     items.push({ type: "divider", key: "div-asist", label: "Asistencias" });
+
     if (perms.puedeValidarAsistencias) {
       items.push({
         to: "/asistencias/validar",
         label: "Validar asistencias",
         icon: "bi bi-check2-circle",
+      });
+    }
+  }
+
+   
+  if (perms.puedeVerHorarioEmpleado || perms.puedeVerCatalogosHorario) {
+    items.push({ type: "divider", key: "div-horarios", label: "Horarios" });
+
+    if (perms.puedeVerHorarioEmpleado) {
+      items.push({
+        to: "/mantenimientos/horario-empleado",
+        label: "Horario de empleados",
+        icon: "bi bi-calendar-week",
+      });
+    }
+
+    if (perms.puedeVerCatalogosHorario) {
+      items.push({
+        to: "/mantenimientos/catalogos-horario",
+        label: "Catálogos de horario",
+        icon: "bi bi-calendar2-range",
       });
     }
   }
@@ -266,9 +291,7 @@ export default function Menu({ user, onLogout }) {
           <i className="bi bi-list"></i> Menú
         </Button>
         <div className="text-end" style={{ minWidth: 0 }}>
-          <div className="fw-semibold text-truncate">
-            {user?.nombreUsuario || "Usuario"}
-          </div>
+          <div className="fw-semibold text-truncate">{user?.nombreUsuario || "Usuario"}</div>
           <small className="text-muted text-truncate">{perms.rolTexto || ""}</small>
         </div>
       </div>

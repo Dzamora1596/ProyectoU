@@ -1,5 +1,5 @@
-//ValidarAsistencias.jsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+// src/pages/asistencias/ValidarAsistencias.jsx
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner, Badge, Alert } from "react-bootstrap";
 import { DataGrid } from "@mui/x-data-grid";
 import api from "../../api/axios";
@@ -9,10 +9,14 @@ function formatHora(hhmmss) {
   return String(hhmmss).slice(0, 5);
 }
 
-// ✅ Solo Pendiente / Confirmada
+ 
 function EstadoBadge({ estado }) {
   if (estado === "Confirmada") return <Badge bg="success">Confirmada</Badge>;
-  return <Badge bg="warning" text="dark">Pendiente</Badge>;
+  return (
+    <Badge bg="warning" text="dark">
+      Pendiente
+    </Badge>
+  );
 }
 
 function normalizeEmpleadoRow(r) {
@@ -33,6 +37,111 @@ function normalizeEmpleadoRow(r) {
   return { idEmpleado: Number(idEmpleado), nombre: String(nombre) };
 }
 
+function extractApiData(r) {
+  if (r?.ok) return r;
+  if (r?.data?.ok) return r.data;
+  return r?.data || r || {};
+}
+
+ 
+function parseHHMMSS_toMinutes(v) {
+  const s = String(v || "").trim();
+  if (!s || s === "00:00:00") return null;
+  const parts = s.split(":").map((x) => Number(x));
+  if (parts.length < 2) return null;
+  const hh = parts[0];
+  const mm = parts[1];
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return hh * 60 + mm;
+}
+
+function dayOfWeek_1_7_fromYYYYMMDD(dateStr) {
+  const s = String(dateStr || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+
+  const d = new Date(`${s}T00:00:00`);
+  const js = d.getDay();  
+  return js === 0 ? 1 : js + 1;  
+}
+
+function calcularTardiaAusenteSegunHorario({ fecha, entradaReal, detalleSemana, toleranciaMin = 0 }) {
+  const dia = dayOfWeek_1_7_fromYYYYMMDD(fecha);
+  if (!dia || !Array.isArray(detalleSemana)) {
+    return {
+      entradaEsperada: null,
+      salidaEsperada: null,
+      aplica: false,
+      tardiaCalc: null,
+      ausenteCalc: null,
+    };
+  }
+
+  const d = detalleSemana.find((x) => Number(x.diaSemana) === Number(dia)) || null;
+
+  const entradaEsperada = d?.entrada ?? null;
+  const salidaEsperada = d?.salida ?? null;
+  const activo = Number(d?.activo ?? 0) === 1;
+
+  const entExpMin = parseHHMMSS_toMinutes(entradaEsperada);
+  const salExpMin = parseHHMMSS_toMinutes(salidaEsperada);
+
+  const aplica = !!(activo && entExpMin !== null && salExpMin !== null);
+
+  if (!aplica) {
+    return {
+      entradaEsperada,
+      salidaEsperada,
+      aplica: false,
+      tardiaCalc: null,
+      ausenteCalc: null,
+    };
+  }
+
+  const entRealMin = parseHHMMSS_toMinutes(entradaReal);
+  const ausenteCalc = entRealMin === null ? 1 : 0;
+
+  let tardiaCalc = 0;
+  if (entRealMin !== null && entExpMin !== null) {
+    tardiaCalc = entRealMin > entExpMin + Number(toleranciaMin || 0) ? 1 : 0;
+  }
+
+  return {
+    entradaEsperada,
+    salidaEsperada,
+    aplica: true,
+    tardiaCalc,
+    ausenteCalc,
+  };
+}
+
+ 
+function pad2(n) {
+  const x = Number(n);
+  return x < 10 ? `0${x}` : String(x);
+}
+
+function toYYYYMMDD(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  const y = dt.getFullYear();
+  const m = pad2(dt.getMonth() + 1);
+  const day = pad2(dt.getDate());
+  return `${y}-${m}-${day}`;
+}
+
+function getMesActualRango() {
+  const now = new Date();
+  const inicio = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fin = now;  
+  return { desde: toYYYYMMDD(inicio), hasta: toYYYYMMDD(fin) };
+}
+
+function getMesAnteriorRango() {
+  const now = new Date();
+  const inicio = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const fin = new Date(now.getFullYear(), now.getMonth(), 0);  
+  return { desde: toYYYYMMDD(inicio), hasta: toYYYYMMDD(fin) };
+}
+
 export default function ValidarAsistencias() {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState([]);
@@ -40,7 +149,7 @@ export default function ValidarAsistencias() {
   const [empleados, setEmpleados] = useState([]);
 
   const [fEmpleadoId, setFEmpleadoId] = useState("");
-  const [fEstado, setFEstado] = useState(""); // "" | "Pendiente" | "Confirmada"
+  const [fEstado, setFEstado] = useState("");  
   const [fFechaDesde, setFFechaDesde] = useState("");
   const [fFechaHasta, setFFechaHasta] = useState("");
 
@@ -55,9 +164,22 @@ export default function ValidarAsistencias() {
   const [errorMsg, setErrorMsg] = useState("");
   const [okMsg, setOkMsg] = useState("");
 
+   
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 31 });
+
+  const horariosCacheRef = useRef(new Map());  
+  const horariosInFlightRef = useRef(new Map());  
+
+  const TOLERANCIA_MIN = 0;
+
   const limpiarMensajes = useCallback(() => {
     setErrorMsg("");
     setOkMsg("");
+  }, []);
+
+  const cerrarDetalle = useCallback(() => {
+    setShow(false);
+    setDetalle(null);
   }, []);
 
   const cargarEmpleados = useCallback(async () => {
@@ -72,7 +194,7 @@ export default function ValidarAsistencias() {
 
       const mapped = lista
         .map(normalizeEmpleadoRow)
-        .filter((e) => e.idEmpleado && !Number.isNaN(e.idEmpleado))
+        .filter((x) => x.idEmpleado && !Number.isNaN(x.idEmpleado))
         .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
       setEmpleados(mapped);
@@ -81,83 +203,209 @@ export default function ValidarAsistencias() {
     }
   }, []);
 
+  const fetchHorarioEmpleadoDetalle = useCallback(async (idEmpleado) => {
+    const emp = Number(idEmpleado || 0);
+    if (!emp) return null;
+
+    const cached = horariosCacheRef.current.get(emp);
+    if (cached) return cached;
+
+    const inflight = horariosInFlightRef.current.get(emp);
+    if (inflight) return inflight;
+
+    const p = (async () => {
+      try {
+        const { data } = await api.get(`/horarios/empleado/${emp}/detalle`);
+        const payload = extractApiData(data);
+
+        const detalleSemana = Array.isArray(payload?.detalle) ? payload.detalle : [];
+        const horario = payload?.horario ?? null;
+
+        const finalObj = { detalleSemana, horario };
+        horariosCacheRef.current.set(emp, finalObj);
+        return finalObj;
+      } catch {
+        const finalObj = { detalleSemana: [], horario: null };
+        horariosCacheRef.current.set(emp, finalObj);
+        return finalObj;
+      } finally {
+        horariosInFlightRef.current.delete(emp);
+      }
+    })();
+
+    horariosInFlightRef.current.set(emp, p);
+    return p;
+  }, []);
+
+  const enriquecerRowsConHorario = useCallback(
+    async (rawRows) => {
+      const list = Array.isArray(rawRows) ? rawRows : [];
+      if (!list.length) return list;
+
+      const empIds = Array.from(
+        new Set(
+          list
+            .map((r) => Number(r?.Empleado_idEmpleado ?? r?.idEmpleado ?? r?.EmpleadoId ?? 0))
+            .filter((n) => Number.isFinite(n) && n > 0)
+        )
+      );
+
+      await Promise.all(empIds.map((id) => fetchHorarioEmpleadoDetalle(id)));
+
+      return list.map((r) => {
+        const empId = Number(r?.Empleado_idEmpleado ?? r?.idEmpleado ?? r?.EmpleadoId ?? 0);
+        const cache = empId ? horariosCacheRef.current.get(empId) : null;
+
+        const entradaReal = r?.Entrada ?? r?.IN ?? "00:00:00";
+        const fecha = r?.Fecha;
+
+        const calc = calcularTardiaAusenteSegunHorario({
+          fecha,
+          entradaReal,
+          detalleSemana: cache?.detalleSemana,
+          toleranciaMin: TOLERANCIA_MIN,
+        });
+
+        return {
+          ...r,
+          __horarioAsignado: cache?.horario ?? null,
+          __entradaEsperada: calc.entradaEsperada,
+          __salidaEsperada: calc.salidaEsperada,
+          __aplicaHorario: calc.aplica,
+          __tardiaCalc: calc.tardiaCalc,
+          __ausenteCalc: calc.ausenteCalc,
+        };
+      });
+    },
+    [fetchHorarioEmpleadoDetalle]
+  );
+
+   
+  const cargarConOverrides = useCallback(
+    async (overrides = {}) => {
+      setLoading(true);
+      limpiarMensajes();
+
+      try {
+        const params = {};
+
+        const empleadoIdEff = overrides.empleadoId ?? fEmpleadoId;
+        const estadoEff = overrides.estado ?? fEstado;
+        const fechaDesdeEff = overrides.fechaDesde ?? fFechaDesde;
+        const fechaHastaEff = overrides.fechaHasta ?? fFechaHasta;
+
+        if (empleadoIdEff) params.empleadoId = empleadoIdEff;
+        if (estadoEff) params.estado = estadoEff;
+        if (fechaDesdeEff) params.fechaDesde = fechaDesdeEff;
+        if (fechaHastaEff) params.fechaHasta = fechaHastaEff;
+
+        const { data } = await api.get("/asistencias", { params });
+
+        const lista = Array.isArray(data?.asistencias) ? data.asistencias : [];
+        const mapped = lista.map((r) => ({
+          ...r,
+          id: r.idAsistencia ?? r.id,
+        }));
+
+        const enriched = await enriquecerRowsConHorario(mapped);
+
+         
+        setPaginationModel((prev) => ({ ...prev, page: 0 }));
+
+        setRows(enriched);
+
+        if (enriched.length === 0) {
+          setOkMsg("No se encontraron asistencias con los filtros seleccionados.");
+        }
+      } catch (err) {
+        setErrorMsg(err?.response?.data?.mensaje || "Error cargando asistencias");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fEmpleadoId, fEstado, fFechaDesde, fFechaHasta, limpiarMensajes, enriquecerRowsConHorario]
+  );
+
   const cargar = useCallback(async () => {
-    setLoading(true);
-    limpiarMensajes();
-
-    try {
-      const params = {};
-      if (fEmpleadoId) params.empleadoId = fEmpleadoId;
-      if (fEstado) params.estado = fEstado; // ✅ backend ya entiende Confirmada/Pendiente
-      if (fFechaDesde) params.fechaDesde = fFechaDesde;
-      if (fFechaHasta) params.fechaHasta = fFechaHasta;
-
-      const { data } = await api.get("/asistencias", { params });
-
-      const lista = Array.isArray(data?.asistencias)
-        ? data.asistencias
-        : Array.isArray(data)
-          ? data
-          : [];
-
-      const mapped = lista.map((r) => ({
-        ...r,
-        id: r.idAsistencia,
-      }));
-
-      setRows(mapped);
-
-      if (mapped.length === 0) setOkMsg("No se encontraron asistencias con los filtros seleccionados.");
-    } catch (err) {
-      setErrorMsg(err?.response?.data?.mensaje || "Error cargando asistencias");
-    } finally {
-      setLoading(false);
-    }
-  }, [fEmpleadoId, fEstado, fFechaDesde, fFechaHasta, limpiarMensajes]);
+    return cargarConOverrides({});
+  }, [cargarConOverrides]);
 
   useEffect(() => {
     cargarEmpleados();
     cargar();
   }, [cargarEmpleados, cargar]);
 
-  const abrirDetalle = useCallback(async (idAsistencia) => {
-    if (!idAsistencia) return;
+  const abrirDetalle = useCallback(
+    async (idAsistencia) => {
+      if (!idAsistencia) return;
 
-    setAccionLoading(true);
-    limpiarMensajes();
+      setAccionLoading(true);
+      limpiarMensajes();
 
-    try {
-      const { data } = await api.get(`/asistencias/${idAsistencia}`);
-      const asistencia = data?.asistencia ?? data;
+      try {
+        const { data } = await api.get(`/asistencias/${idAsistencia}`);
+        const asistencia = data?.asistencia ?? null;
 
-      setDetalle(asistencia);
-      setShow(true);
-    } catch (err) {
-      setErrorMsg(err?.response?.data?.mensaje || "Error obteniendo detalle");
-    } finally {
-      setAccionLoading(false);
-    }
-  }, [limpiarMensajes]);
+        if (!asistencia) {
+          setDetalle(null);
+          setShow(true);
+          return;
+        }
 
-  // ✅ Solo Confirmar / Quitar confirmación
-  const cambiarEstado = useCallback(async (idAsistencia, estado) => {
-    if (!idAsistencia) return;
+        const empId = Number(
+          asistencia?.Empleado_idEmpleado ?? asistencia?.idEmpleado ?? asistencia?.EmpleadoId ?? 0
+        );
+        const cache = empId ? await fetchHorarioEmpleadoDetalle(empId) : null;
 
-    setAccionLoading(true);
-    limpiarMensajes();
+        const entradaReal = asistencia?.Entrada ?? asistencia?.IN ?? "00:00:00";
 
-    try {
-      await api.put(`/asistencias/${idAsistencia}/estado`, { estado });
-      setOkMsg(`Asistencia actualizada a: ${estado}`);
-      setShow(false);
-      setDetalle(null);
-      await cargar();
-    } catch (err) {
-      setErrorMsg(err?.response?.data?.mensaje || "Error actualizando estado");
-    } finally {
-      setAccionLoading(false);
-    }
-  }, [limpiarMensajes, cargar]);
+        const calc = calcularTardiaAusenteSegunHorario({
+          fecha: asistencia?.Fecha,
+          entradaReal,
+          detalleSemana: cache?.detalleSemana,
+          toleranciaMin: TOLERANCIA_MIN,
+        });
+
+        setDetalle({
+          ...asistencia,
+          __horarioAsignado: cache?.horario ?? null,
+          __entradaEsperada: calc.entradaEsperada,
+          __salidaEsperada: calc.salidaEsperada,
+          __aplicaHorario: calc.aplica,
+          __tardiaCalc: calc.tardiaCalc,
+          __ausenteCalc: calc.ausenteCalc,
+        });
+
+        setShow(true);
+      } catch (err) {
+        setErrorMsg(err?.response?.data?.mensaje || "Error obteniendo detalle");
+      } finally {
+        setAccionLoading(false);
+      }
+    },
+    [limpiarMensajes, fetchHorarioEmpleadoDetalle]
+  );
+
+  const cambiarEstado = useCallback(
+    async (idAsistencia, estado) => {
+      if (!idAsistencia) return;
+
+      setAccionLoading(true);
+      limpiarMensajes();
+
+      try {
+        await api.put(`/asistencias/${idAsistencia}/estado`, { estado });
+        setOkMsg(`Asistencia actualizada a: ${estado}`);
+        cerrarDetalle();
+        await cargar();
+      } catch (err) {
+        setErrorMsg(err?.response?.data?.mensaje || "Error actualizando estado");
+      } finally {
+        setAccionLoading(false);
+      }
+    },
+    [limpiarMensajes, cargar, cerrarDetalle]
+  );
 
   const importarExcel = useCallback(async () => {
     limpiarMensajes();
@@ -178,11 +426,16 @@ export default function ValidarAsistencias() {
 
       setOkMsg(
         data?.mensaje ||
-        `Importación completada. Insertados: ${data?.insertados ?? 0}, Actualizados: ${data?.actualizados ?? 0}`
+          `Importación completada. Insertados: ${data?.insertados ?? 0}, Actualizados: ${
+            data?.actualizados ?? 0
+          }`
       );
 
       setShowImport(false);
       setImportFile(null);
+
+      horariosCacheRef.current = new Map();
+      horariosInFlightRef.current = new Map();
 
       await cargar();
     } catch (err) {
@@ -191,6 +444,21 @@ export default function ValidarAsistencias() {
       setImportLoading(false);
     }
   }, [importFile, limpiarMensajes, cargar]);
+
+   
+  const aplicarMesActual = useCallback(async () => {
+    const r = getMesActualRango();
+    setFFechaDesde(r.desde);
+    setFFechaHasta(r.hasta);
+    await cargarConOverrides({ fechaDesde: r.desde, fechaHasta: r.hasta });
+  }, [cargarConOverrides]);
+
+  const aplicarMesAnterior = useCallback(async () => {
+    const r = getMesAnteriorRango();
+    setFFechaDesde(r.desde);
+    setFFechaHasta(r.hasta);
+    await cargarConOverrides({ fechaDesde: r.desde, fechaHasta: r.hasta });
+  }, [cargarConOverrides]);
 
   const columns = useMemo(
     () => [
@@ -201,28 +469,30 @@ export default function ValidarAsistencias() {
         headerName: "Entrada",
         flex: 1,
         minWidth: 110,
-        renderCell: (p) => formatHora(p?.row?.Entrada),
+        renderCell: (p) => formatHora(p?.row?.Entrada ?? p?.row?.IN),
       },
       {
         field: "Salida",
         headerName: "Salida",
         flex: 1,
         minWidth: 110,
-        renderCell: (p) => formatHora(p?.row?.Salida),
+        renderCell: (p) => formatHora(p?.row?.Salida ?? p?.row?.OUT),
       },
       {
-        field: "Tardia",
-        headerName: "Tardía",
-        flex: 0.8,
-        minWidth: 90,
-        renderCell: (p) => (Number(p?.row?.Tardia) === 1 ? "Sí" : "No"),
+        field: "__tardiaCalc",
+        headerName: "Tardía (horario)",
+        flex: 1,
+        minWidth: 140,
+        renderCell: (p) =>
+          p?.row?.__tardiaCalc === null ? "—" : p?.row?.__tardiaCalc === 1 ? "Sí" : "No",
       },
       {
-        field: "Ausente",
-        headerName: "Ausente",
-        flex: 0.8,
-        minWidth: 90,
-        renderCell: (p) => (Number(p?.row?.Ausente) === 1 ? "Sí" : "No"),
+        field: "__ausenteCalc",
+        headerName: "Ausente (horario)",
+        flex: 1,
+        minWidth: 150,
+        renderCell: (p) =>
+          p?.row?.__ausenteCalc === null ? "—" : p?.row?.__ausenteCalc === 1 ? "Sí" : "No",
       },
       {
         field: "Estado",
@@ -303,9 +573,9 @@ export default function ValidarAsistencias() {
             <Form.Label>Empleado</Form.Label>
             <Form.Select value={fEmpleadoId} onChange={(e) => setFEmpleadoId(e.target.value)}>
               <option value="">Todos</option>
-              {empleados.map((e) => (
-                <option key={e.idEmpleado} value={e.idEmpleado}>
-                  {e.nombre} (ID: {e.idEmpleado})
+              {empleados.map((emp) => (
+                <option key={emp.idEmpleado} value={emp.idEmpleado}>
+                  {emp.nombre} (ID: {emp.idEmpleado})
                 </option>
               ))}
             </Form.Select>
@@ -330,6 +600,15 @@ export default function ValidarAsistencias() {
             <Form.Control type="date" value={fFechaHasta} onChange={(e) => setFFechaHasta(e.target.value)} />
           </Col>
 
+          <Col xs={12} md="auto" className="mt-2 mt-md-0 d-flex gap-2">
+            <Button variant="outline-secondary" onClick={aplicarMesAnterior} disabled={loading}>
+              Mes anterior
+            </Button>
+            <Button variant="outline-secondary" onClick={aplicarMesActual} disabled={loading}>
+              Mes actual
+            </Button>
+          </Col>
+
           <Col xs={12} className="d-grid mt-2">
             <Button onClick={cargar} disabled={loading}>
               {loading ? "Cargando..." : "Buscar"}
@@ -343,15 +622,16 @@ export default function ValidarAsistencias() {
           rows={rows}
           columns={columns}
           loading={loading}
-          pageSizeOptions={[10, 25, 50]}
-          initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+          pageSizeOptions={[31, 62, 93]}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
           disableRowSelectionOnClick
-          getRowId={(row) => row.idAsistencia}
+          getRowId={(row) => row.idAsistencia ?? row.id}
         />
       </div>
 
-      {/* DETALLE */}
-      <Modal show={show} onHide={() => setShow(false)} centered size="lg">
+       
+      <Modal show={show} onHide={cerrarDetalle} centered size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Detalle de asistencia</Modal.Title>
         </Modal.Header>
@@ -368,8 +648,12 @@ export default function ValidarAsistencias() {
             <>
               <Row className="mb-2">
                 <Col md={8}>
-                  <div><strong>Empleado:</strong> {detalle.EmpleadoNombre}</div>
-                  <div><strong>Fecha:</strong> {detalle.Fecha}</div>
+                  <div>
+                    <strong>Empleado:</strong> {detalle.EmpleadoNombre}
+                  </div>
+                  <div>
+                    <strong>Fecha:</strong> {detalle.Fecha}
+                  </div>
                 </Col>
                 <Col md={4} className="text-md-end">
                   <EstadoBadge estado={detalle.Estado} />
@@ -377,11 +661,16 @@ export default function ValidarAsistencias() {
               </Row>
 
               <Row className="mb-3">
-                <Col md={4}><strong>Entrada:</strong> {formatHora(detalle.Entrada)}</Col>
-                <Col md={4}><strong>Salida:</strong> {formatHora(detalle.Salida)}</Col>
                 <Col md={4}>
-                  <strong>Tardía/Ausente:</strong>{" "}
-                  {Number(detalle.Tardia) === 1 ? "Sí" : "No"} / {Number(detalle.Ausente) === 1 ? "Sí" : "No"}
+                  <strong>Entrada:</strong> {formatHora(detalle.Entrada ?? detalle.IN)}
+                </Col>
+                <Col md={4}>
+                  <strong>Salida:</strong> {formatHora(detalle.Salida ?? detalle.OUT)}
+                </Col>
+                <Col md={4}>
+                  <strong>Tardía/Ausente (horario):</strong>{" "}
+                  {detalle.__tardiaCalc === null ? "—" : detalle.__tardiaCalc === 1 ? "Sí" : "No"} /{" "}
+                  {detalle.__ausenteCalc === null ? "—" : detalle.__ausenteCalc === 1 ? "Sí" : "No"}
                 </Col>
               </Row>
 
@@ -396,7 +685,7 @@ export default function ValidarAsistencias() {
         </Modal.Body>
 
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShow(false)} disabled={accionLoading}>
+          <Button variant="secondary" onClick={cerrarDetalle} disabled={accionLoading}>
             Cerrar
           </Button>
 
@@ -422,7 +711,7 @@ export default function ValidarAsistencias() {
         </Modal.Footer>
       </Modal>
 
-      {/* IMPORTAR */}
+       
       <Modal show={showImport} onHide={() => setShowImport(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Importar asistencias desde Excel</Modal.Title>
@@ -439,8 +728,7 @@ export default function ValidarAsistencias() {
           </Form.Group>
 
           <div className="text-muted" style={{ fontSize: 13 }}>
-            El sistema intentará detectar el empleado desde el Excel (por ejemplo: <b>(3)</b>).
-            Si no se detecta, se registrará como no asignado.
+            Inserte Excel. Si el empleado no existe en el sistema, la fila será ignorada. 
           </div>
         </Modal.Body>
 

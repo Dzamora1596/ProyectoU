@@ -62,3 +62,12 @@ export async function desactivarRegistroPersonal(idEmpleado) {
     normalizarError(err);
   }
 }
+
+export async function obtenerCatalogosRegistroPersonal() {
+  try {
+    const res = await api.get("/catalogos/registro-personal");
+    return res.data;
+  } catch (err) {
+    normalizarError(err);
+  }
+}
