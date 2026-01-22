@@ -5,7 +5,7 @@ function normalizarEstado(estado) {
   const e = String(estado || "").trim().toLowerCase();
   if (e === "confirmada") return "Confirmada";
   if (e === "pendiente") return "Pendiente";
-  if (e === "validada") return "Confirmada"; // compat
+  if (e === "validada") return "Confirmada";  
   return "";
 }
 

@@ -1,0 +1,101 @@
+:root {
+   
+  --dm-red: #9e1b1e;            
+  --dm-red-hover: #7a1517;      
+  --dm-black: #1a1a1b;         
+  --dm-white: #ffffff;
+  --dm-gray-light: #f4f5f7;     
+  --dm-border-color: #e3e6f0;   
+  
+  
+  --dm-success: #f8e643;       
+  --dm-warning: #ff2f2f;       
+  --dm-danger: var(--dm-red);   
+  
+   
+  --dm-shadow: 0 0.15rem 1.75rem 0 rgba(168, 58, 7, 0.15);
+  --dm-radius: 8px;
+}
+
+ 
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--dm-gray-light);
+  color: var(--dm-black);
+}
+
+ 
+.btn-primary {
+  --bs-btn-bg: var(--dm-black);
+  --bs-btn-border-color: var(--dm-black);
+  --bs-btn-hover-bg: #000000;
+  --bs-btn-hover-border-color: #000000;
+  --bs-btn-active-bg: #000000;
+  font-weight: 600 !important;
+  border-radius: var(--dm-radius) !important;
+}
+
+ 
+.btn-success {
+  --bs-btn-bg: var(--dm-red);
+  --bs-btn-border-color: var(--dm-red);
+  --bs-btn-hover-bg: var(--dm-red-hover);
+  --bs-btn-hover-border-color: var(--dm-red-hover);
+  border-radius: var(--dm-radius) !important;
+  font-weight: 600 !important;
+}
+
+ 
+.card {
+  border: none !important;
+  border-radius: var(--dm-radius) !important;
+  box-shadow: var(--dm-shadow);
+}
+
+.card-header {
+  border-bottom: 1px solid var(--dm-border-color) !important;
+  font-weight: bold;
+}
+
+ 
+.table thead th {
+  background-color: #f8f9fc !important;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  color: #be1300;  
+  border-bottom: 2px solid var(--dm-border-color) !important;
+}
+
+ 
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+}
+
+.sidebar {
+  width: 280px;
+  background: var(--dm-white);
+  border-right: 1px solid var(--dm-border-color);
+  transition: all 0.3s ease;
+}
+
+.menu-link.active {
+  background-color: rgba(158, 27, 30, 0.1) !important;  
+  color: var(--dm-red) !important;
+  border-left: 4px solid var(--dm-red);
+  font-weight: bold;
+}
+
+.menu-link:hover {
+  background-color: var(--dm-gray-light);
+  color: var(--dm-red);
+}
+
+.text-marenco-red { color: var(--dm-red); }
+.bg-marenco-red { background-color: var(--dm-red); }
+.text-marenco-black { color: var(--dm-black); }

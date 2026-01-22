@@ -1,5 +1,4 @@
 // requireRole.js
-
 module.exports = (rolesPermitidos = []) => {
   const permitidos = (rolesPermitidos || []).map((r) =>
     String(r).toLowerCase().trim()

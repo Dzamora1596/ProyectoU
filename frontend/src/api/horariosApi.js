@@ -13,10 +13,7 @@ function normalizarError(err) {
   throw e;
 }
 
- 
 const BASE = "/horarios";
-
- 
 
 export async function obtenerHorarioEmpleado(idEmpleado) {
   try {
@@ -64,8 +61,6 @@ export async function asignarCatalogoHorarioEmpleado(idEmpleado, idCatalogoHorar
     normalizarError(err);
   }
 }
-
- 
 
 export async function listarCatalogosHorario() {
   try {

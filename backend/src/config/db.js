@@ -7,9 +7,7 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
 
-   
   database: process.env.DB_NAME || "baseproyectoplanilla",
-
   port: Number(process.env.DB_PORT || 3306),
 
   waitForConnections: true,
@@ -22,12 +20,16 @@ const pool = mysql.createPool({
   dateStrings: true,
 
    
+  decimalNumbers: true,
+
+   
+  namedPlaceholders: true,
+
   connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT || 10000),
+ 
+  timezone: "-06:00",
 
-   
-  timezone: "Z",
-
-   
+  
   typeCast: (field, next) => {
     if (field.type === "BIT") {
       const buf = field.buffer();

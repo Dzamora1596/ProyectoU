@@ -5,7 +5,6 @@ require("dotenv").config();
 
 const db = require("./config/db");
 const errorHandler = require("./middlewares/errorHandler");
-
 const autenticarRoutes = require("./routes/autenticarRoutes");
 const usuarioRoutes = require("./routes/usuarioRoutes");
 const horarioLaboralRoutes = require("./routes/horarioLaboralRoutes");
@@ -16,7 +15,6 @@ const telefonoRoutes = require("./routes/telefonoRoutes");
 const correoRoutes = require("./routes/correoRoutes");
 const catalogosRoutes = require("./routes/catalogosRoutes");
 const horasExtraRoutes = require("./routes/horasExtraRoutes");
-
 const app = express();
 
 const allowedOrigins = (process.env.CORS_ORIGINS || "")
@@ -26,8 +24,8 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "")
 
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.length === 0) return cb(null, true);
+    if (!origin) return cb(null, true); 
+    if (allowedOrigins.length === 0) return cb(null, true); 
     if (allowedOrigins.includes(origin)) return cb(null, true);
     return cb(new Error("Not allowed by CORS"));
   },
@@ -36,7 +34,6 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
-
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 

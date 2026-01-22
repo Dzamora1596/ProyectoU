@@ -1,4 +1,3 @@
-// src/pages/horarios/CatalogosHorario.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Modal, Row, Spinner, Table } from "react-bootstrap";
 import {
@@ -79,25 +78,19 @@ function buildDetalleCompleto(rawDetalle) {
 export default function CatalogosHorario() {
   const [catalogos, setCatalogos] = useState([]);
   const [tiposHorario, setTiposHorario] = useState([]);
-
   const [catalogoId, setCatalogoId] = useState("");
   const [catalogoActual, setCatalogoActual] = useState(null);
-
   const [detalle, setDetalle] = useState(buildDetalleCompleto([]));
   const [detalleDirty, setDetalleDirty] = useState(false);
-
   const [cargandoCatalogos, setCargandoCatalogos] = useState(false);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [guardando, setGuardando] = useState(false);
-
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-
   const [showNuevoCatalogo, setShowNuevoCatalogo] = useState(false);
   const [nuevoDescripcion, setNuevoDescripcion] = useState("");
   const [nuevoTipoHorarioId, setNuevoTipoHorarioId] = useState("");
   const [nuevoActivo, setNuevoActivo] = useState(true);
-
   const [showEditarCatalogo, setShowEditarCatalogo] = useState(false);
   const [editDescripcion, setEditDescripcion] = useState("");
   const [editTipoHorarioId, setEditTipoHorarioId] = useState("");
@@ -116,6 +109,7 @@ export default function CatalogosHorario() {
       const list = Array.isArray(data?.catalogos) ? data.catalogos : [];
       setCatalogos(list);
     } catch (err) {
+      console.error("Error al listar catálogos:", err);
       setError(String(err?.message || err));
       setCatalogos([]);
     } finally {
@@ -134,6 +128,7 @@ export default function CatalogosHorario() {
         : [];
       setTiposHorario(list);
     } catch (err) {
+      console.error("Error al cargar tipos de horario:", err);
       setError(String(err?.message || err));
       setTiposHorario([]);
     }
@@ -160,6 +155,7 @@ export default function CatalogosHorario() {
       setDetalleDirty(false);
       setInfo("Detalle cargado.");
     } catch (err) {
+      console.error("Error al cargar detalle:", err);
       setDetalle(buildDetalleCompleto([]));
       setDetalleDirty(false);
       setError(String(err?.message || err));
@@ -256,6 +252,7 @@ export default function CatalogosHorario() {
         await seleccionarCatalogo(String(newId));
       }
     } catch (err) {
+      console.error("Error al crear catálogo:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -303,6 +300,7 @@ export default function CatalogosHorario() {
       setShowEditarCatalogo(false);
       await cargarCatalogos();
     } catch (err) {
+      console.error("Error al actualizar catálogo:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -330,6 +328,7 @@ export default function CatalogosHorario() {
       setDetalleDirty(false);
       await cargarCatalogos();
     } catch (err) {
+      console.error("Error al desactivar catálogo:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -345,7 +344,6 @@ export default function CatalogosHorario() {
 
     const tieneHoras = (entrada, salida) => !!(String(entrada || "").trim() && String(salida || "").trim());
 
-     
     const cambios = (detalle || []).map((d) => {
       const entradaHHMM = horaParaInput(d.entrada);
       const salidaHHMM = horaParaInput(d.salida);
@@ -361,7 +359,6 @@ export default function CatalogosHorario() {
       };
     });
 
-     
     for (const c of cambios) {
       const alguna = !!(c.entrada || c.salida);
       const ambas = !!(c.entrada && c.salida);
@@ -381,14 +378,11 @@ export default function CatalogosHorario() {
         const existe = c.idCatalogoHorarioDetalle > 0;
         const horas = tieneHoras(c.entrada, c.salida);
 
-         
         if (existe && !horas) {
-           
           await eliminarDetalleCatalogoHorario(id, c.idCatalogoHorarioDetalle);
           continue;
         }
 
-        
         if (existe && horas) {
           await actualizarDetalleCatalogoHorario(id, c.idCatalogoHorarioDetalle, {
             entrada: c.entrada,
@@ -398,7 +392,6 @@ export default function CatalogosHorario() {
           continue;
         }
 
-         
         if (!existe && horas) {
           const r = await crearDetalleCatalogoHorario(id, {
             diaSemana: c.diaSemana,
@@ -420,8 +413,6 @@ export default function CatalogosHorario() {
           }
           continue;
         }
-
-         
       }
 
       setInfo("Detalle guardado.");
@@ -429,6 +420,7 @@ export default function CatalogosHorario() {
       await cargarCatalogos();
       await cargarDetalleCatalogo(id);
     } catch (err) {
+      console.error("Error al guardar detalle:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -445,7 +437,6 @@ export default function CatalogosHorario() {
     const row = (detalle || []).find((x) => Number(x.diaSemana) === Number(diaSemana));
     const idDet = Number(row?.idCatalogoHorarioDetalle || 0);
 
-     
     if (!idDet) {
       onChangeDetalle(diaSemana, "entrada", "");
       onChangeDetalle(diaSemana, "salida", "");
@@ -464,6 +455,7 @@ export default function CatalogosHorario() {
       await cargarDetalleCatalogo(id);
       await cargarCatalogos();
     } catch (err) {
+      console.error("Error al desactivar detalle:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -482,7 +474,7 @@ export default function CatalogosHorario() {
           >
             {cargandoCatalogos ? (
               <>
-                <Spinner size="sm" /> Recargando...
+                <Spinner size="sm" className="me-1" /> Recargando...
               </>
             ) : (
               "Recargar"
@@ -494,8 +486,8 @@ export default function CatalogosHorario() {
         </div>
       </div>
 
-      {error ? <Alert variant="danger">{error}</Alert> : null}
-      {info ? <Alert variant="success">{info}</Alert> : null}
+      {error ? <Alert variant="danger" dismissible onClose={() => setError("")}>{error}</Alert> : null}
+      {info ? <Alert variant="success" dismissible onClose={() => setInfo("")}>{info}</Alert> : null}
 
       <Card className="mb-3">
         <Card.Body>
@@ -528,7 +520,7 @@ export default function CatalogosHorario() {
                 onClick={abrirEditarCatalogo}
                 disabled={!catalogoId || guardando}
               >
-                Editar catálogo
+                Editar 
               </Button>
             </Col>
 
@@ -552,7 +544,7 @@ export default function CatalogosHorario() {
                   : ""}
               </div>
               <div>
-                idCatalogoHorario: {catalogoActual.idCatalogoHorario} · Activo:{" "}
+                ID: {catalogoActual.idCatalogoHorario} · Activo:{" "}
                 {Number(catalogoActual.activo) === 1 ? "Sí" : "No"}
               </div>
             </div>
@@ -564,7 +556,7 @@ export default function CatalogosHorario() {
         <Card.Body>
           <div className="d-flex align-items-center justify-content-between mb-2">
             <div style={{ fontWeight: 600 }}>
-              Detalle del catálogo (DAYOFWEEK: 1=Domingo … 7=Sábado)
+              Detalle del catálogo (1=Domingo … 7=Sábado)
             </div>
             <div className="d-flex gap-2">
               <Button
@@ -574,7 +566,7 @@ export default function CatalogosHorario() {
               >
                 {guardando ? (
                   <>
-                    <Spinner size="sm" /> Guardando...
+                    <Spinner size="sm" className="me-1" /> Guardando...
                   </>
                 ) : (
                   "Guardar detalle"
@@ -641,11 +633,10 @@ export default function CatalogosHorario() {
           </Table>
 
           <div style={{ fontSize: 12, color: "#666" }}>
-            Si un turno cruza medianoche, la salida puede ser menor que la entrada (ej: 22:00 → 06:00).
+            Nota: Si un turno cruza medianoche, la salida puede ser menor que la entrada (ej: 22:00 → 06:00).
           </div>
         </Card.Body>
       </Card>
-
       <Modal show={showNuevoCatalogo} onHide={() => setShowNuevoCatalogo(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Nuevo catálogo</Modal.Title>
@@ -662,7 +653,6 @@ export default function CatalogosHorario() {
                 />
               </Form.Group>
             </Col>
-
             <Col md={12}>
               <Form.Group>
                 <Form.Label>Tipo de horario</Form.Label>
@@ -680,7 +670,6 @@ export default function CatalogosHorario() {
                 </Form.Select>
               </Form.Group>
             </Col>
-
             <Col md={12}>
               <Form.Check
                 type="switch"
@@ -696,17 +685,10 @@ export default function CatalogosHorario() {
             Cancelar
           </Button>
           <Button variant="primary" onClick={guardarNuevoCatalogo} disabled={guardando}>
-            {guardando ? (
-              <>
-                <Spinner size="sm" /> Guardando...
-              </>
-            ) : (
-              "Crear"
-            )}
+            {guardando ? <Spinner size="sm" /> : "Crear"}
           </Button>
         </Modal.Footer>
       </Modal>
-
       <Modal show={showEditarCatalogo} onHide={() => setShowEditarCatalogo(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Editar catálogo</Modal.Title>
@@ -722,7 +704,6 @@ export default function CatalogosHorario() {
                 />
               </Form.Group>
             </Col>
-
             <Col md={12}>
               <Form.Group>
                 <Form.Label>Tipo de horario</Form.Label>
@@ -740,7 +721,6 @@ export default function CatalogosHorario() {
                 </Form.Select>
               </Form.Group>
             </Col>
-
             <Col md={12}>
               <Form.Check
                 type="switch"
@@ -756,13 +736,7 @@ export default function CatalogosHorario() {
             Cancelar
           </Button>
           <Button variant="primary" onClick={guardarEditarCatalogo} disabled={guardando}>
-            {guardando ? (
-              <>
-                <Spinner size="sm" /> Guardando...
-              </>
-            ) : (
-              "Guardar"
-            )}
+            {guardando ? <Spinner size="sm" /> : "Guardar"}
           </Button>
         </Modal.Footer>
       </Modal>

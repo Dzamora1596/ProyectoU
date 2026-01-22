@@ -5,7 +5,6 @@ const api = axios.create({
   baseURL: import.meta?.env?.VITE_API_URL || "http://localhost:4000/api",
 });
 
-// Para no duplicar interceptores en React
 let _interceptorId = null;
 
 function ensureInterceptors() {
@@ -14,8 +13,6 @@ function ensureInterceptors() {
   _interceptorId = api.interceptors.request.use(
     (config) => {
       config.headers = config.headers || {};
-
-      // ✅ Token (necesario si backend usa autenticarMiddleware)
       const token = localStorage.getItem("token");
       if (token) config.headers.Authorization = `Bearer ${token}`;
 

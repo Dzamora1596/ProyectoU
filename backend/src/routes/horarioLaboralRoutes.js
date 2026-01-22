@@ -8,24 +8,12 @@ const horarioLaboralController = require("../controllers/horarioLaboralControlle
 
 router.use(autenticar);
 
-/** =========================
- *  ESQUEMA B: POR EMPLEADO
- *  =========================
- *
- * IMPORTANTE:
- * - El frontend debe llamar con /api/horarios/... (porque en app.js montas /api/horarios)
- * - GET /empleado/:idEmpleado debe devolver: { horario, detalle }
- * - GET /empleado/:idEmpleado/detalle puede devolver { horario, detalle } (o solo { detalle } si así lo quieres)
- * - PUT /empleado/:idEmpleado/detalle asigna catálogo al empleado (upsert)
- */
-
 router.get(
   "/empleado/:idEmpleado",
   requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
   horarioLaboralController.obtenerHorarioPorEmpleado
 );
 
-// ✅ Esta ruta YA ESTÁ BIEN (y existe). No la toques.
 router.get(
   "/empleado/:idEmpleado/detalle",
   requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
@@ -38,9 +26,7 @@ router.put(
   horarioLaboralController.upsertDetallePorEmpleado
 );
 
-/** =========================
- *  LEGACY: Horario_Laboral
- *  ========================= */
+ 
 router.get(
   "/",
   requireRole(["Admin", "Jefatura", "Personal de Planilla"]),
@@ -71,9 +57,7 @@ router.delete(
   horarioLaboralController.eliminarHorario
 );
 
-/** =========================
- *  CATÁLOGOS
- *  ========================= */
+ 
 router.get(
   "/catalogos",
   requireRole(["Admin", "Jefatura", "Personal de Planilla"]),

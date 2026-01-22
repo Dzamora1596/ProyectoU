@@ -87,28 +87,21 @@ function extractApiData(r) {
 export default function HorarioEmpleado() {
   const [empleados, setEmpleados] = useState([]);
   const [idEmpleado, setIdEmpleado] = useState("");
-
   const [catalogos, setCatalogos] = useState([]);
   const [catalogoSeleccionado, setCatalogoSeleccionado] = useState("");
-
   const [horarioAsignado, setHorarioAsignado] = useState(null);
-
   const [detalleAsignado, setDetalleAsignado] = useState(buildDetalleCompleto([]));
   const [detalleCatalogo, setDetalleCatalogo] = useState(buildDetalleCompleto([]));
-
   const [cargando, setCargando] = useState(false);
   const [cargandoEmpleados, setCargandoEmpleados] = useState(false);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(false);
   const [cargandoDetalleCatalogo, setCargandoDetalleCatalogo] = useState(false);
   const [guardando, setGuardando] = useState(false);
-
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-
   const hayEmpleado = !!Number(idEmpleado);
   const hayCatalogoSeleccionado = !!Number(catalogoSeleccionado);
   const hayAsignado = !!horarioAsignado;
-
   const detalleMostrado = useMemo(() => {
     const cat = Number(catalogoSeleccionado);
     if (cat) return detalleCatalogo;
@@ -163,14 +156,12 @@ export default function HorarioEmpleado() {
       setCargandoCatalogos(false);
     }
   }, []);
-
   const cargarDetalleDeCatalogo = useCallback(async (idCat) => {
     const cat = Number(idCat || 0);
     if (!cat) {
       setDetalleCatalogo(buildDetalleCompleto([]));
       return;
     }
-
     setCargandoDetalleCatalogo(true);
     setError("");
     try {

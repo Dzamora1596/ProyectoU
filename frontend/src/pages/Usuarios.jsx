@@ -32,20 +32,14 @@ export default function Usuarios() {
   const [activo, setActivo] = useState("all");
   const [bloqueado, setBloqueado] = useState("all");
   const [rolId, setRolId] = useState("");
-
-   
   const [rows, setRows] = useState([]);
   const [roles, setRoles] = useState([]);
   const [empleados, setEmpleados] = useState([]);
-
-   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
-
-   
   const [showModal, setShowModal] = useState(false);
-  const [modo, setModo] = useState("crear"); // crear | editar
+  const [modo, setModo] = useState("crear");  
   const [editId, setEditId] = useState(null);
 
    
@@ -153,7 +147,7 @@ export default function Usuarios() {
       empleadoId: String(u.empleadoId ?? ""),
       nombreUsuario: String(u.nombreUsuario ?? ""),
       rolId: String(u.rolId ?? ""),
-      password: "", // vacío por defecto
+      password: "", 
       activo: Boolean(u.activo),
       bloqueado: Boolean(u.bloqueado),
       intentosFallidos: Number(u.intentosFallidos ?? 0),

@@ -1,6 +1,5 @@
-//layouts/AppLayout.jsx
+import React, { useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useEffect } from "react";
 import Menu from "../components/Menu";
 
 function leerUsuarioDesdeStorage() {
@@ -44,10 +43,20 @@ export default function AppLayout() {
   }, [token, user, navigate, location.pathname]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ display: 'flex', minHeight: '100vh' }}>
       <Menu user={user} onLogout={onLogout} />
-      <main className="app-content">
-        <Outlet />
+      <main 
+        className="app-content flex-grow-1" 
+        style={{ 
+          backgroundColor: 'var(--dm-gray-light)', 
+          padding: '2rem',
+          overflowY: 'auto',
+          maxHeight: '100vh'
+        }}
+      >
+        <div className="container-fluid p-0">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

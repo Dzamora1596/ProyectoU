@@ -2,7 +2,6 @@
 const XLSX = require("xlsx");
 const db = require("../config/db");
 
- 
 function norm(s) {
   return String(s || "")
     .trim()
@@ -29,11 +28,11 @@ function rowEsVacia(row) {
   return r.length === 0 || r.every((c) => isVacio(c));
 }
 
- 
+// ===== HORAS =====
 function convertirHora(v) {
   if (v === null || v === undefined) return "00:00:00";
 
-   
+  // Excel serial time (fracción del día)
   if (typeof v === "number") {
     const totalSeconds = Math.round(v * 24 * 60 * 60);
     const hh = Math.floor(totalSeconds / 3600) % 24;
@@ -44,22 +43,24 @@ function convertirHora(v) {
   let str = String(v).trim();
   if (!str) return "00:00:00";
 
-   
+  // Normaliza "a. m." / "p. m." / "AM" / "PM"
   str = str
     .toLowerCase()
     .replace(/\./g, "")
     .replace(/\s+/g, " ")
     .trim();
 
-   
+  // "a m" / "p m" -> "am"/"pm"
   str = str.replace(/\b(p|a)\s*m\b/g, (_, x) => `${x}m`);
 
-   
+  // HH:MM am/pm
   const m = str.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);
   if (m) {
     let hh = Number(m[1]);
     const mm = Number(m[2]);
     const ampm = (m[3] || "").toLowerCase();
+
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return "00:00:00";
 
     if (ampm === "pm" && hh < 12) hh += 12;
     if (ampm === "am" && hh === 12) hh = 0;
@@ -67,7 +68,7 @@ function convertirHora(v) {
     return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
   }
 
-   
+  // HH:MM (sin AM/PM)
   if (str.includes(":")) {
     const [hh, mm] = str.split(":");
     return `${String(Number(hh) || 0).padStart(2, "0")}:${String(Number(mm) || 0).padStart(2, "0")}:00`;
@@ -76,30 +77,91 @@ function convertirHora(v) {
   return "00:00:00";
 }
 
- 
-function convertirFecha(v) {
+// ===== FECHAS (CLAVE DEL ARREGLO) =====
+// Mapeo del día en el Excel (col 0) a getUTCDay() de JS
+const DOW_TO_UTC = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
+function esDiaSemana(v) {
+  const s = String(v || "").trim().toLowerCase();
+  return ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].includes(s);
+}
+
+function pad2(n) {
+  return String(Number(n) || 0).padStart(2, "0");
+}
+
+function ymdFromParts(y, m, d) {
+  return `${y}-${pad2(m)}-${pad2(d)}`;
+}
+
+function validarYMD(y, m, d) {
+  const yy = Number(y), mm = Number(m), dd = Number(d);
+  if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return false;
+  if (yy < 1900 || yy > 2100) return false;
+  if (mm < 1 || mm > 12) return false;
+  if (dd < 1 || dd > 31) return false;
+
+  const dt = new Date(Date.UTC(yy, mm - 1, dd));
+  return (
+    dt.getUTCFullYear() === yy &&
+    dt.getUTCMonth() + 1 === mm &&
+    dt.getUTCDate() === dd
+  );
+}
+
+function utcDowFromYYYYMMDD(ymd) {
+  const s = String(ymd || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split("-").map((x) => Number(x));
+  if (!validarYMD(y, m, d)) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCDay();
+}
+
+// ✅ Esta versión elimina la ambigüedad 02/01..12/01 usando:
+// 1) raw:true para que Excel fechas salgan como número (ideal)
+// 2) si llega como string dd/mm/yyyy (o mm/dd/yyyy), y el día de semana está disponible (THU/FRI...),
+//    prueba ambas interpretaciones cuando es ambiguo y elige la que calza con el DOW.
+function convertirFecha(v, diaSemanaHint = null) {
   if (v === null || v === undefined) return null;
 
-   
+  // Date object
   if (v instanceof Date && !isNaN(v.getTime())) {
     const y = v.getFullYear();
-    const m = String(v.getMonth() + 1).padStart(2, "0");
-    const d = String(v.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    const m = v.getMonth() + 1;
+    const d = v.getDate();
+    return ymdFromParts(y, m, d);
   }
 
-   
+  // Excel serial date (número) -> NO ambiguo
   if (typeof v === "number") {
     const d = XLSX.SSF.parse_date_code(v);
     if (!d) return null;
     const y = d.y;
-    const m = String(d.m).padStart(2, "0");
-    const day = String(d.d).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+    const m = d.m;
+    const day = d.d;
+    if (!validarYMD(y, m, day)) return null;
+    return ymdFromParts(y, m, day);
   }
 
   let str = String(v).trim();
   if (!str) return null;
+
+  // ISO-like "YYYY-MM-DD" (opcionalmente con hora)
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const y = Number(iso[1]), m = Number(iso[2]), d = Number(iso[3]);
+    if (!validarYMD(y, m, d)) return null;
+    return ymdFromParts(y, m, d);
+  }
 
   const sep = str.includes("-") ? "-" : str.includes("/") ? "/" : null;
   if (!sep) return null;
@@ -107,39 +169,56 @@ function convertirFecha(v) {
   const parts = str.split(sep).map((x) => String(x || "").trim());
   if (parts.length < 3) return null;
 
-  const p1 = Number(parts[0]);
-  const p2 = Number(parts[1]);
-  let y = String(parts[2]);
+  const p1 = Number(parts[0]); // puede ser dd o mm
+  const p2 = Number(parts[1]); // puede ser mm o dd
+  let y = String(parts[2]).trim();
 
-  if (!p1 || !p2 || !y) return null;
+  if (!Number.isFinite(p1) || !Number.isFinite(p2) || !y) return null;
 
-  if (y.length === 2) y = `20${y}`;
-  if (y.length !== 4) return null;
+  // Año 2 dígitos -> ventana 70/30
+  let year = Number(y);
+  if (y.length === 2) {
+    year = year >= 70 ? 1900 + year : 2000 + year;
+  }
+  if (!Number.isFinite(year) || String(year).length !== 4) return null;
 
-  const year = Number(y);
-  if (!year) return null;
-
-  const mk = (month, day) => {
-    if (month < 1 || month > 12) return null;
-    if (day < 1 || day > 31) return null;
-    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const make = (month, day) => {
+    if (!validarYMD(year, month, day)) return null;
+    return ymdFromParts(year, month, day);
   };
 
-   
-  if (p1 > 12) {
-    return mk(p2, p1);
+  // Si no es ambiguo, resolver directo:
+  // p1 > 12 => p1 es día (D/M)
+  if (p1 > 12 && p2 <= 12) return make(p2, p1);
+
+  // p2 > 12 => p2 es día (M/D)
+  if (p2 > 12 && p1 <= 12) return make(p1, p2);
+
+  // Ambiguo (1..12 / 1..12)
+  // ✅ Si tenemos hint de día de semana (THU/FRI...), usamos eso para escoger.
+  const hint = String(diaSemanaHint || "").trim().toLowerCase();
+  const hintDow = hint && DOW_TO_UTC[hint] !== undefined ? DOW_TO_UTC[hint] : null;
+
+  const candDMY = make(p2, p1); // D/M
+  const candMDY = make(p1, p2); // M/D
+
+  if (hintDow !== null) {
+    const dowDMY = candDMY ? utcDowFromYYYYMMDD(candDMY) : null;
+    const dowMDY = candMDY ? utcDowFromYYYYMMDD(candMDY) : null;
+
+    // Preferir la que calza con el DOW del archivo
+    if (dowDMY === hintDow && dowMDY !== hintDow) return candDMY;
+    if (dowMDY === hintDow && dowDMY !== hintDow) return candMDY;
+
+    // Si ambas calzan (raro) o ninguna calza, default D/M (CR)
+    return candDMY || candMDY || null;
   }
 
-   
-  if (p2 > 12) {
-    return mk(p1, p2);
-  }
-
-  
-  return mk(p2, p1);
+  // Sin hint, default D/M (Costa Rica)
+  return candDMY || candMDY || null;
 }
 
- 
+// ===== HEADERS =====
 function encontrarFilaHeadersDesde(aoa, startIdx) {
   for (let i = startIdx; i < aoa.length; i++) {
     const row = (aoa[i] || []).map(norm);
@@ -164,7 +243,7 @@ function encontrarIndicesHeaders(headersNorm) {
   return { idxDate, idxIn, idxOut, idxNote };
 }
 
- 
+// ===== DB helpers =====
 async function obtenerPeriodoIdPorFecha(fechaYYYYMMDD) {
   const [rows] = await db.query(
     `SELECT idCatalogo_Periodo
@@ -177,7 +256,6 @@ async function obtenerPeriodoIdPorFecha(fechaYYYYMMDD) {
   return rows?.[0]?.idCatalogo_Periodo || 0;
 }
 
- 
 function buscarMissingEnFila(row) {
   for (const cell of row || []) {
     const s = String(cell || "").trim();
@@ -187,7 +265,6 @@ function buscarMissingEnFila(row) {
   return "";
 }
 
- 
 function extraerEmpleadoIdDeTextoEmpleado(texto) {
   const s = String(texto || "").trim();
   if (!s) return 0;
@@ -276,25 +353,19 @@ async function existeEmpleado(idEmpleado) {
   return rows.length > 0;
 }
 
- 
-function esDiaSemana(v) {
-  const s = String(v || "").trim().toLowerCase();
-  return ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].includes(s);
-}
-
- 
+// ===== EXTRACCIÓN FILAS =====
 function extraerRegistroFila(dataRow, idxDate, idxIn, idxOut, idxNote) {
   const row = dataRow || [];
 
-  // ✅ Formato fijo (como tu captura)
+  // ✅ Formato fijo (como tu captura): DOW | DATE | IN | OUT
+  // Usamos el DOW (row[0]) como "hint" para desambiguar 02/01..12/01.
   if (esDiaSemana(row[0])) {
-    const fecha = convertirFecha(row[1]);  
+    const fecha = convertirFecha(row[1], row[0]);
     if (!fecha) return null;
 
-    const entrada = convertirHora(row[2]);  
-    const salida = convertirHora(row[3]);  
+    const entrada = convertirHora(row[2]);
+    const salida = convertirHora(row[3]);
 
-     
     let rawNote = String(row[6] ?? "").trim();
     if (!rawNote) rawNote = buscarMissingEnFila(row);
 
@@ -311,7 +382,7 @@ function extraerRegistroFila(dataRow, idxDate, idxIn, idxOut, idxNote) {
     };
   }
 
-   
+  // Formato general con headers Date/IN/OUT
   let shift = 0;
   const fecha0 = convertirFecha(row[idxDate]);
   const fecha1 = convertirFecha(row[idxDate + 1]);
@@ -413,7 +484,7 @@ function extraerBloquesDesdeHoja(aoa) {
   return bloques;
 }
 
- 
+// ===== CONTROLLER =====
 exports.importarDesdeExcel = async (req, res) => {
   try {
     const empleadoIdBody = req.body?.empleadoId ? Number(req.body.empleadoId) : 0;
@@ -427,8 +498,8 @@ exports.importarDesdeExcel = async (req, res) => {
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
-     
-    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+    // ✅ CLAVE: raw:true para que las fechas/hora de Excel salgan como NÚMEROS (serial) y no strings ambiguos por locale
+    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
 
     const bloques = extraerBloquesDesdeHoja(aoa);
 

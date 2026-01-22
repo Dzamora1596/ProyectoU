@@ -1,4 +1,3 @@
-// src/pages/asistencias/ValidarAsistencias.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner, Badge, Alert } from "react-bootstrap";
 import { DataGrid } from "@mui/x-data-grid";
@@ -9,11 +8,13 @@ function formatHora(hhmmss) {
   return String(hhmmss).slice(0, 5);
 }
 
- 
 function EstadoBadge({ estado }) {
-  if (estado === "Confirmada") return <Badge bg="success">Confirmada</Badge>;
+  if (estado === "Confirmada") {
+    return <Badge style={{ backgroundColor: "#5da334", color: "white" }}>Confirmada</Badge>;
+  }
   return (
-    <Badge bg="warning" text="dark">
+  
+    <Badge bg="danger">
       Pendiente
     </Badge>
   );
@@ -43,7 +44,6 @@ function extractApiData(r) {
   return r?.data || r || {};
 }
 
- 
 function parseHHMMSS_toMinutes(v) {
   const s = String(v || "").trim();
   if (!s || s === "00:00:00") return null;
@@ -55,17 +55,135 @@ function parseHHMMSS_toMinutes(v) {
   return hh * 60 + mm;
 }
 
+function pad2(n) {
+  const x = Number(n);
+  return x < 10 ? `0${x}` : String(x);
+}
+
+function toYYYYMMDD_UTCFromParts(y, m, d) {
+  const dt = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+  const yy = dt.getUTCFullYear();
+  const mm = pad2(dt.getUTCMonth() + 1);
+  const dd = pad2(dt.getUTCDate());
+  return `${yy}-${mm}-${dd}`;
+}
+
+function isValidYMD(y, m, d) {
+  const yy = Number(y), mm = Number(m), dd = Number(d);
+  if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return false;
+  if (yy < 1900 || yy > 2100) return false;
+  if (mm < 1 || mm > 12) return false;
+  if (dd < 1 || dd > 31) return false;
+  const dt = new Date(Date.UTC(yy, mm - 1, dd));
+  return (
+    dt.getUTCFullYear() === yy &&
+    dt.getUTCMonth() + 1 === mm &&
+    dt.getUTCDate() === dd
+  );
+}
+
+function excelSerialToYYYYMMDD(serial) {
+  const n = Number(serial);
+  if (!Number.isFinite(n)) return null;
+
+  const base = Date.UTC(1899, 11, 30);
+  const ms = Math.round(n * 86400000);
+  const dt = new Date(base + ms);
+
+  return toYYYYMMDD_UTCFromParts(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+}
+
+function normalizeFechaToYYYYMMDD(value) {
+  if (value === null || value === undefined) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return toYYYYMMDD_UTCFromParts(value.getUTCFullYear(), value.getUTCMonth() + 1, value.getUTCDate());
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value > 100000000000) {
+      const dt = new Date(value);
+      if (!Number.isNaN(dt.getTime())) {
+        return toYYYYMMDD_UTCFromParts(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+      }
+    }
+
+  
+    const serial = excelSerialToYYYYMMDD(value);
+    if (serial) return serial;
+  }
+
+  const s = String(value).trim();
+  if (!s) return null;
+
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    if (isValidYMD(y, m, d)) return `${y}-${m}-${d}`;
+    return null;
+  }
+
+   
+  const dmyMatch = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
+  if (dmyMatch) {
+    let [, a, b, c] = dmyMatch;
+    const p1 = Number(a);
+    const p2 = Number(b);
+
+     
+    let year = Number(c);
+    if (String(c).length === 2) {
+      year = year >= 70 ? 1900 + year : 2000 + year;
+    }
+
+    let day, month;
+    if (p1 > 12 && p2 <= 12) {
+      day = p1; month = p2;  
+    } else if (p2 > 12 && p1 <= 12) {
+      day = p2; month = p1;  
+    } else {
+      day = p1; month = p2;  
+    }
+
+    if (isValidYMD(year, month, day)) return toYYYYMMDD_UTCFromParts(year, month, day);
+    return null;
+  }
+
+   
+  const t = Date.parse(s);
+  if (Number.isFinite(t)) {
+    const dt = new Date(t);
+    if (!Number.isNaN(dt.getTime())) {
+      return toYYYYMMDD_UTCFromParts(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+    }
+  }
+
+  return null;
+}
+
+function formatFechaDDMMYYYY(value) {
+  const ymd = normalizeFechaToYYYYMMDD(value);
+  if (!ymd) return String(value || "");
+  const [y, m, d] = ymd.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 function dayOfWeek_1_7_fromYYYYMMDD(dateStr) {
   const s = String(dateStr || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
 
-  const d = new Date(`${s}T00:00:00`);
-  const js = d.getDay();  
+  const [y, m, d] = s.split("-").map((x) => Number(x));
+  if (!isValidYMD(y, m, d)) return null;
+
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const js = dt.getUTCDay();  
   return js === 0 ? 1 : js + 1;  
 }
 
 function calcularTardiaAusenteSegunHorario({ fecha, entradaReal, detalleSemana, toleranciaMin = 0 }) {
-  const dia = dayOfWeek_1_7_fromYYYYMMDD(fecha);
+  const fechaNorm = normalizeFechaToYYYYMMDD(fecha);
+  const dia = dayOfWeek_1_7_fromYYYYMMDD(fechaNorm);
+
   if (!dia || !Array.isArray(detalleSemana)) {
     return {
       entradaEsperada: null,
@@ -114,12 +232,6 @@ function calcularTardiaAusenteSegunHorario({ fecha, entradaReal, detalleSemana, 
   };
 }
 
- 
-function pad2(n) {
-  const x = Number(n);
-  return x < 10 ? `0${x}` : String(x);
-}
-
 function toYYYYMMDD(d) {
   const dt = d instanceof Date ? d : new Date(d);
   const y = dt.getFullYear();
@@ -131,14 +243,14 @@ function toYYYYMMDD(d) {
 function getMesActualRango() {
   const now = new Date();
   const inicio = new Date(now.getFullYear(), now.getMonth(), 1);
-  const fin = now;  
+  const fin = now;
   return { desde: toYYYYMMDD(inicio), hasta: toYYYYMMDD(fin) };
 }
 
 function getMesAnteriorRango() {
   const now = new Date();
   const inicio = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const fin = new Date(now.getFullYear(), now.getMonth(), 0);  
+  const fin = new Date(now.getFullYear(), now.getMonth(), 0);
   return { desde: toYYYYMMDD(inicio), hasta: toYYYYMMDD(fin) };
 }
 
@@ -149,7 +261,7 @@ export default function ValidarAsistencias() {
   const [empleados, setEmpleados] = useState([]);
 
   const [fEmpleadoId, setFEmpleadoId] = useState("");
-  const [fEstado, setFEstado] = useState("");  
+  const [fEstado, setFEstado] = useState("");
   const [fFechaDesde, setFFechaDesde] = useState("");
   const [fFechaHasta, setFFechaHasta] = useState("");
 
@@ -164,11 +276,10 @@ export default function ValidarAsistencias() {
   const [errorMsg, setErrorMsg] = useState("");
   const [okMsg, setOkMsg] = useState("");
 
-   
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 31 });
 
-  const horariosCacheRef = useRef(new Map());  
-  const horariosInFlightRef = useRef(new Map());  
+  const horariosCacheRef = useRef(new Map());
+  const horariosInFlightRef = useRef(new Map());
 
   const TOLERANCIA_MIN = 0;
 
@@ -257,10 +368,11 @@ export default function ValidarAsistencias() {
         const cache = empId ? horariosCacheRef.current.get(empId) : null;
 
         const entradaReal = r?.Entrada ?? r?.IN ?? "00:00:00";
-        const fecha = r?.Fecha;
+
+        const fechaNorm = normalizeFechaToYYYYMMDD(r?.Fecha) || r?.Fecha || null;
 
         const calc = calcularTardiaAusenteSegunHorario({
-          fecha,
+          fecha: fechaNorm,
           entradaReal,
           detalleSemana: cache?.detalleSemana,
           toleranciaMin: TOLERANCIA_MIN,
@@ -268,6 +380,7 @@ export default function ValidarAsistencias() {
 
         return {
           ...r,
+          Fecha: fechaNorm,
           __horarioAsignado: cache?.horario ?? null,
           __entradaEsperada: calc.entradaEsperada,
           __salidaEsperada: calc.salidaEsperada,
@@ -280,7 +393,6 @@ export default function ValidarAsistencias() {
     [fetchHorarioEmpleadoDetalle]
   );
 
-   
   const cargarConOverrides = useCallback(
     async (overrides = {}) => {
       setLoading(true);
@@ -300,18 +412,19 @@ export default function ValidarAsistencias() {
         if (fechaHastaEff) params.fechaHasta = fechaHastaEff;
 
         const { data } = await api.get("/asistencias", { params });
-
         const lista = Array.isArray(data?.asistencias) ? data.asistencias : [];
-        const mapped = lista.map((r) => ({
-          ...r,
-          id: r.idAsistencia ?? r.id,
-        }));
+        const mapped = lista.map((r) => {
+          const fechaNorm = normalizeFechaToYYYYMMDD(r?.Fecha) || r?.Fecha || null;
+          return {
+            ...r,
+            id: r.idAsistencia ?? r.id,
+            Fecha: fechaNorm,
+          };
+        });
 
         const enriched = await enriquecerRowsConHorario(mapped);
 
-         
         setPaginationModel((prev) => ({ ...prev, page: 0 }));
-
         setRows(enriched);
 
         if (enriched.length === 0) {
@@ -359,8 +472,10 @@ export default function ValidarAsistencias() {
 
         const entradaReal = asistencia?.Entrada ?? asistencia?.IN ?? "00:00:00";
 
+        const fechaNorm = normalizeFechaToYYYYMMDD(asistencia?.Fecha) || asistencia?.Fecha || null;
+
         const calc = calcularTardiaAusenteSegunHorario({
-          fecha: asistencia?.Fecha,
+          fecha: fechaNorm,
           entradaReal,
           detalleSemana: cache?.detalleSemana,
           toleranciaMin: TOLERANCIA_MIN,
@@ -368,6 +483,7 @@ export default function ValidarAsistencias() {
 
         setDetalle({
           ...asistencia,
+          Fecha: fechaNorm,
           __horarioAsignado: cache?.horario ?? null,
           __entradaEsperada: calc.entradaEsperada,
           __salidaEsperada: calc.salidaEsperada,
@@ -445,7 +561,6 @@ export default function ValidarAsistencias() {
     }
   }, [importFile, limpiarMensajes, cargar]);
 
-   
   const aplicarMesActual = useCallback(async () => {
     const r = getMesActualRango();
     setFFechaDesde(r.desde);
@@ -462,7 +577,18 @@ export default function ValidarAsistencias() {
 
   const columns = useMemo(
     () => [
-      { field: "Fecha", headerName: "Fecha", flex: 1, minWidth: 110 },
+      {
+        field: "Fecha",
+        headerName: "Fecha",
+        flex: 1,
+        minWidth: 130,
+        renderCell: (p) => formatFechaDDMMYYYY(p?.row?.Fecha),
+        sortComparator: (v1, v2) => {
+          const a = normalizeFechaToYYYYMMDD(v1) || "";
+          const b = normalizeFechaToYYYYMMDD(v2) || "";
+          return a.localeCompare(b);
+        },
+      },
       { field: "EmpleadoNombre", headerName: "Empleado", flex: 2, minWidth: 230 },
       {
         field: "Entrada",
@@ -566,7 +692,6 @@ export default function ValidarAsistencias() {
 
       {errorMsg ? <Alert variant="danger">{errorMsg}</Alert> : null}
       {okMsg ? <Alert variant="success">{okMsg}</Alert> : null}
-
       <div className="p-3 mb-3 border rounded bg-light">
         <Row className="g-2 align-items-end">
           <Col xs={12} md={5}>
@@ -630,7 +755,6 @@ export default function ValidarAsistencias() {
         />
       </div>
 
-       
       <Modal show={show} onHide={cerrarDetalle} centered size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Detalle de asistencia</Modal.Title>
@@ -652,7 +776,7 @@ export default function ValidarAsistencias() {
                     <strong>Empleado:</strong> {detalle.EmpleadoNombre}
                   </div>
                   <div>
-                    <strong>Fecha:</strong> {detalle.Fecha}
+                    <strong>Fecha:</strong> {formatFechaDDMMYYYY(detalle.Fecha)}
                   </div>
                 </Col>
                 <Col md={4} className="text-md-end">
@@ -711,7 +835,6 @@ export default function ValidarAsistencias() {
         </Modal.Footer>
       </Modal>
 
-       
       <Modal show={showImport} onHide={() => setShowImport(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Importar asistencias desde Excel</Modal.Title>
@@ -728,7 +851,7 @@ export default function ValidarAsistencias() {
           </Form.Group>
 
           <div className="text-muted" style={{ fontSize: 13 }}>
-            Inserte Excel. Si el empleado no existe en el sistema, la fila será ignorada. 
+            Inserte Excel. Si el empleado no existe en el sistema, la fila será ignorada.
           </div>
         </Modal.Body>
 
