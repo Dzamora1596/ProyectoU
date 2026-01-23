@@ -11,6 +11,7 @@ const {
   obtenerCatalogosTiposHoraExtra,
   obtenerCatalogosEstadosPorModulo,
   obtenerCatalogosPeriodos,
+  obtenerCatalogosTiposPermiso,
 } = require("../controllers/catalogosController");
 
 router.use(autenticar);
@@ -20,6 +21,8 @@ router.get("/roles", obtenerCatalogosRoles);
 
 router.get("/cadencias-pago", obtenerCatalogosCadenciaPago);
 router.get("/tipos-hora-extra", obtenerCatalogosTiposHoraExtra);
+router.get("/tipos-permiso", obtenerCatalogosTiposPermiso);
+
 router.get("/estados", obtenerCatalogosEstadosPorModulo);
 router.get("/periodos", obtenerCatalogosPeriodos);
 

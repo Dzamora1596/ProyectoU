@@ -1,3 +1,4 @@
+//src/pages/asistencias/ValidarAsistencias.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner, Badge, Alert } from "react-bootstrap";
 import { DataGrid } from "@mui/x-data-grid";

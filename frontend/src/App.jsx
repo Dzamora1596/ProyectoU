@@ -9,7 +9,8 @@ import Usuarios from "./pages/Usuarios";
 import ValidarAsistencias from "./pages/asistencias/ValidarAsistencias";
 import HorasExtra from "./pages/planilla/HorasExtra";
 import HorarioEmpleado from "./pages/horarios/HorarioEmpleado";
-import CatalogosHorario from "./pages/horarios/CatalogosHorario"; 
+import CatalogosHorario from "./pages/horarios/CatalogosHorario";
+import Permisos from "./pages/permisos/Permisos";
 
 function Placeholder({ titulo }) {
   return (
@@ -31,55 +32,27 @@ export default function App() {
           <Route path="/registro-personal" element={<RegistroPersonal />} />
           <Route path="/usuarios" element={<Usuarios />} />
           <Route path="/asistencias/validar" element={<ValidarAsistencias />} />
-          <Route
-            path="/asistencias/registro"
-            element={<Placeholder titulo="Registrar/ajustar asistencias" />}
-          />
-          <Route
-            path="/planilla/calcular-salarios"
-            element={<Placeholder titulo="Calcular salarios" />}
-          />
+          <Route path="/asistencias/registro" element={<Placeholder titulo="Registrar/ajustar asistencias" />} />
+          <Route path="/planilla/calcular-salarios" element={<Placeholder titulo="Calcular salarios" />} />
           <Route path="/planilla/horas-extra" element={<HorasExtra />} />
-          <Route
-            path="/planilla/deducciones"
-            element={<Placeholder titulo="Deducciones" />}
-          />
-          <Route
-            path="/planilla/adelantos"
-            element={<Placeholder titulo="Adelantos" />}
-          />
-          <Route
-            path="/planilla/aguinaldo"
-            element={<Placeholder titulo="Aguinaldo" />}
-          />
-          <Route
-            path="/planilla/incapacidades"
-            element={<Placeholder titulo="Incapacidades" />}
-          />
-          <Route
-            path="/planilla/liquidacion"
-            element={<Placeholder titulo="Liquidación" />}
-          />
-          <Route path="/permisos" element={<Placeholder titulo="Permisos" />} />
+          <Route path="/planilla/deducciones" element={<Placeholder titulo="Deducciones" />} />
+          <Route path="/planilla/adelantos" element={<Placeholder titulo="Adelantos" />} />
+          <Route path="/planilla/aguinaldo" element={<Placeholder titulo="Aguinaldo" />} />
+          <Route path="/planilla/incapacidades" element={<Placeholder titulo="Incapacidades" />} />
+          <Route path="/planilla/liquidacion" element={<Placeholder titulo="Liquidación" />} />
+
+          <Route path="/permisos" element={<Permisos />} />
           <Route path="/vacaciones" element={<Placeholder titulo="Vacaciones" />} />
           <Route path="/consultas" element={<Placeholder titulo="Consultas" />} />
           <Route path="/reportes" element={<Placeholder titulo="Reportes" />} />
+
           <Route path="/mantenimientos" element={<Placeholder titulo="Mantenimientos" />} />
           <Route path="/mantenimientos/horario-empleado" element={<HorarioEmpleado />} />
           <Route path="/mantenimientos/catalogos-horario" element={<CatalogosHorario />} />
 
-          <Route
-            path="/solicitudes/permisos"
-            element={<Placeholder titulo="Solicitar permiso" />}
-          />
-          <Route
-            path="/solicitudes/vacaciones"
-            element={<Placeholder titulo="Solicitar vacaciones" />}
-          />
-          <Route
-            path="/solicitudes/adelantos"
-            element={<Placeholder titulo="Solicitar adelanto" />}
-          />
+          <Route path="/solicitudes/permisos" element={<Permisos />} />
+          <Route path="/solicitudes/vacaciones" element={<Placeholder titulo="Solicitar vacaciones" />} />
+          <Route path="/solicitudes/adelantos" element={<Placeholder titulo="Solicitar adelanto" />} />
           <Route path="/mi-info" element={<Placeholder titulo="Mi información" />} />
         </Route>
       </Route>

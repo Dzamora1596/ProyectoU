@@ -1,3 +1,4 @@
+// backend/src/controllers/empleadoController.js
 const db = require("../config/db");
 
 function bitTo01(v) {
@@ -14,6 +15,22 @@ function nombreCompletoDesdePersona(p) {
   const a1 = String(p?.Apellido1 || "").trim();
   const a2 = String(p?.Apellido2 || "").trim();
   return [n, a1, a2].filter(Boolean).join(" ");
+}
+
+function getUserEmpleadoId(req) {
+  const v =
+    req?.user?.empleadoId ??
+    req?.user?.Empleado_idEmpleado ??
+    req?.user?.idEmpleado ??
+    req?.user?.EmpleadoId ??
+    req?.usuario?.empleadoId ??
+    req?.usuario?.Empleado_idEmpleado ??
+    req?.usuario?.idEmpleado ??
+    req?.usuario?.EmpleadoId ??
+    null;
+
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 async function listarEmpleados(req, res, next) {
@@ -49,6 +66,52 @@ async function listarEmpleados(req, res, next) {
   }
 }
 
+async function obtenerMiEmpleado(req, res, next) {
+  try {
+    const empleadoId = getUserEmpleadoId(req);
+    if (!empleadoId) {
+      return res.status(400).json({ ok: false, mensaje: "El usuario no tiene empleado asignado" });
+    }
+
+    const [rows] = await db.query(
+      `
+      SELECT
+        e.idEmpleado,
+        e.Persona_idPersona,
+        e.Activo,
+        p.Nombre,
+        p.Apellido1,
+        p.Apellido2
+      FROM Empleado e
+      JOIN Persona p ON p.idPersona = e.Persona_idPersona
+      WHERE e.idEmpleado = ?
+      LIMIT 1
+      `,
+      [empleadoId]
+    );
+
+    const r = rows?.[0];
+    if (!r || bitTo01(r.Activo) !== 1) {
+      return res.status(404).json({ ok: false, mensaje: "Empleado no encontrado o inactivo" });
+    }
+
+    const nombreCompleto = nombreCompletoDesdePersona(r);
+
+    return res.json({
+      ok: true,
+      empleado: {
+        idEmpleado: Number(r.idEmpleado),
+        personaId: Number(r.Persona_idPersona),
+        activo: 1,
+        nombreCompleto,
+        nombre: nombreCompleto,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function crearEmpleado(req, res, next) {
   try {
     const personaId = Number(req.body?.Persona_idPersona || req.body?.personaId || 0);
@@ -64,10 +127,7 @@ async function crearEmpleado(req, res, next) {
       return res.status(409).json({ ok: false, mensaje: "Ya existe un empleado para esa persona" });
     }
 
-    const [ins] = await db.query(
-      "INSERT INTO Empleado (Persona_idPersona, Activo) VALUES (?, 1)",
-      [personaId]
-    );
+    const [ins] = await db.query("INSERT INTO Empleado (Persona_idPersona, Activo) VALUES (?, 1)", [personaId]);
 
     return res.status(201).json({ ok: true, idEmpleado: Number(ins.insertId), mensaje: "Empleado creado" });
   } catch (error) {
@@ -83,14 +143,9 @@ async function actualizarEmpleado(req, res, next) {
     }
 
     const activo =
-      req.body?.Activo === undefined && req.body?.activo === undefined
-        ? 1
-        : bitTo01(req.body?.Activo ?? req.body?.activo);
+      req.body?.Activo === undefined && req.body?.activo === undefined ? 1 : bitTo01(req.body?.Activo ?? req.body?.activo);
 
-    const [upd] = await db.query("UPDATE Empleado SET Activo = ? WHERE idEmpleado = ?", [
-      activo,
-      idEmpleado,
-    ]);
+    const [upd] = await db.query("UPDATE Empleado SET Activo = ? WHERE idEmpleado = ?", [activo, idEmpleado]);
 
     if (!upd.affectedRows) {
       return res.status(404).json({ ok: false, mensaje: "Empleado no encontrado" });
@@ -123,6 +178,7 @@ async function eliminarEmpleado(req, res, next) {
 
 module.exports = {
   listarEmpleados,
+  obtenerMiEmpleado,
   crearEmpleado,
   actualizarEmpleado,
   eliminarEmpleado,

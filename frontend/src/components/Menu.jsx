@@ -1,3 +1,4 @@
+// frontend/src/components/Menu.jsx
 import "bootstrap/dist/css/bootstrap.min.css";
 import { NavLink, useLocation } from "react-router-dom";
 import { useMemo, useState } from "react";
@@ -27,7 +28,7 @@ function puedeAcceder(user) {
     puedeRegistrarPersonal: esAdmin || esJefatura,
     puedeValidarAsistencias: esAdmin || esJefatura || esPlanilla,
     puedeRegistrarAsistencias: esAdmin || esJefatura,
-    puedeCalcularPagos: esAdmin || esPlanilla,
+    puedeCalcularPagos: esAdmin || esJefatura || esPlanilla,
     puedeVerMantenimientos: esAdmin,
     puedeVerConsultas: esAdmin || esJefatura || esPlanilla,
     puedeVerReportes: esAdmin || esJefatura || esPlanilla,
@@ -54,22 +55,25 @@ function SidebarContent({
         type="button"
         className="sidebar-handle d-none d-md-inline-flex"
         onClick={onToggleCollapsed}
-        style={{ color: 'var(--dm-red)' }}
+        style={{ color: "var(--dm-red)" }}
       >
         {collapsed ? <i className="bi bi-chevron-right"></i> : <i className="bi bi-chevron-left"></i>}
       </button>
 
-      <div className="px-3 py-4 sidebar-header" style={{ borderBottom: '2px solid var(--dm-red)' }}>
+      <div className="px-3 py-4 sidebar-header" style={{ borderBottom: "2px solid var(--dm-red)" }}>
         <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
-          <div className="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style={{ minWidth: '35px', height: '35px' }}>
+          <div
+            className="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center fw-bold"
+            style={{ minWidth: "35px", height: "35px" }}
+          >
             {user?.nombreUsuario?.charAt(0).toUpperCase() || "U"}
           </div>
           {!collapsed && (
             <div className="d-flex flex-column" style={{ minWidth: 0 }}>
-              <span className="fw-bold text-dark text-truncate" style={{ fontSize: '0.85rem' }}>
+              <span className="fw-bold text-dark text-truncate" style={{ fontSize: "0.85rem" }}>
                 {user?.nombreUsuario || "Usuario"}
               </span>
-              <small className="text-muted text-uppercase fw-bold text-truncate" style={{ fontSize: '0.65rem' }}>
+              <small className="text-muted text-uppercase fw-bold text-truncate" style={{ fontSize: "0.65rem" }}>
                 {perms.rolTexto || ""}
               </small>
             </div>
@@ -84,7 +88,7 @@ function SidebarContent({
               <div
                 key={it.key || idx}
                 className={["pt-4 pb-2 text-uppercase fw-bold", collapsed ? "text-center" : "px-4"].join(" ")}
-                style={{ letterSpacing: 1.2, fontSize: '0.65rem', color: '#adb5bd' }}
+                style={{ letterSpacing: 1.2, fontSize: "0.65rem", color: "#adb5bd" }}
               >
                 {collapsed ? "—" : it.label}
               </div>
@@ -106,27 +110,33 @@ function SidebarContent({
               }
               title={collapsed ? it.label : undefined}
             >
-              <span className="menu-icon"><i className={it.icon}></i></span>
-              {!collapsed && <span className="menu-label" style={{ fontSize: '0.9rem' }}>{it.label}</span>}
+              <span className="menu-icon">
+                <i className={it.icon}></i>
+              </span>
+              {!collapsed && (
+                <span className="menu-label" style={{ fontSize: "0.9rem" }}>
+                  {it.label}
+                </span>
+              )}
             </NavLink>
           );
         })}
       </div>
 
       <div className="p-3 border-top mt-auto bg-light">
-        <Button 
-          variant="outline-dark" 
+        <Button
+          variant="outline-dark"
           className="w-100 d-flex align-items-center justify-content-center gap-2 fw-bold mb-2"
           onClick={onLogout}
         >
           <i className="bi bi-box-arrow-left"></i>
           {!collapsed && <span>Cerrar sesión</span>}
         </Button>
-        
+
         {!collapsed && pathname && (
           <div className="text-center opacity-75">
-            <small className="text-muted fw-bold" style={{ fontSize: '0.55rem' }}>
-              RUTA ACTUAL: <span style={{ color: 'var(--dm-red)' }}>{pathname.toUpperCase()}</span>
+            <small className="text-muted fw-bold" style={{ fontSize: "0.55rem" }}>
+              RUTA ACTUAL: <span style={{ color: "var(--dm-red)" }}>{pathname.toUpperCase()}</span>
             </small>
           </div>
         )}
@@ -219,9 +229,13 @@ export default function Menu({ user, onLogout }) {
 
       <aside className={`sidebar d-none d-md-flex ${collapsed ? "collapsed" : ""}`}>
         <SidebarContent
-          user={user} perms={perms} items={items} collapsed={collapsed}
+          user={user}
+          perms={perms}
+          items={items}
+          collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
-          onLogout={onLogout} pathname={location.pathname}
+          onLogout={onLogout}
+          pathname={location.pathname}
         />
       </aside>
 
@@ -231,8 +245,12 @@ export default function Menu({ user, onLogout }) {
         </Offcanvas.Header>
         <Offcanvas.Body className="p-0">
           <SidebarContent
-            user={user} perms={perms} items={items} collapsed={false}
-            onLogout={onLogout} onNavigate={() => setShowMobile(false)}
+            user={user}
+            perms={perms}
+            items={items}
+            collapsed={false}
+            onLogout={onLogout}
+            onNavigate={() => setShowMobile(false)}
             pathname={location.pathname}
           />
         </Offcanvas.Body>

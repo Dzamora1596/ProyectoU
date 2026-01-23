@@ -3,14 +3,12 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const autenticarModel = require("../models/autenticarModel");
 
-
 function bitToBool(v) {
   if (v === null || v === undefined) return false;
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v === 1;
   if (Buffer.isBuffer(v)) return v.length ? v[0] === 1 : false;
 
- 
   if (typeof v === "object" && v !== null && typeof v[0] !== "undefined") {
     return v[0] === 1;
   }
@@ -28,7 +26,6 @@ function safeNum(v) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-
 const MAX_INTENTOS = (() => {
   const n = Number(process.env.MAX_LOGIN_INTENTOS || 5);
   return Number.isFinite(n) && n > 0 ? n : 5;
@@ -36,10 +33,8 @@ const MAX_INTENTOS = (() => {
 
 const JWT_EXPIRES_IN = safeStr(process.env.JWT_EXPIRES_IN) || "8h";
 
-
 async function tryRegistrarLogAcceso({ idUsuario, empleadoId, exitoso, observacion }) {
   try {
-    
     if (!idUsuario || !empleadoId) return;
 
     await autenticarModel.registrarLogAcceso({
@@ -48,11 +43,8 @@ async function tryRegistrarLogAcceso({ idUsuario, empleadoId, exitoso, observaci
       exitoso: !!exitoso,
       observacion: safeStr(observacion),
     });
-  } catch (_) {
-    
-  }
+  } catch (_) {}
 }
-
 
 const login = async (req, res, next) => {
   try {
@@ -66,10 +58,8 @@ const login = async (req, res, next) => {
       });
     }
 
-    
     const user = await autenticarModel.buscarUsuarioParaLogin(usuario);
 
-    
     if (!user) {
       return res.status(401).json({ ok: false, mensaje: "Credenciales inválidas" });
     }
@@ -81,7 +71,6 @@ const login = async (req, res, next) => {
     const bloqueado = bitToBool(user.Bloqueado);
     const intentosFallidos = safeNum(user.Intentos_Fallidos) || 0;
 
-    
     if (!activo) {
       await tryRegistrarLogAcceso({
         idUsuario,
@@ -93,7 +82,6 @@ const login = async (req, res, next) => {
       return res.status(401).json({ ok: false, mensaje: "Usuario inactivo" });
     }
 
-    
     if (bloqueado) {
       await tryRegistrarLogAcceso({
         idUsuario,
@@ -108,10 +96,8 @@ const login = async (req, res, next) => {
       });
     }
 
-    
     const hashBD = safeStr(user.Password);
 
-    
     if (!hashBD.startsWith("$2a$") && !hashBD.startsWith("$2b$") && !hashBD.startsWith("$2y$")) {
       return res.status(500).json({
         ok: false,
@@ -121,7 +107,6 @@ const login = async (req, res, next) => {
 
     const passwordValido = await bcrypt.compare(password, hashBD);
 
-    
     if (!passwordValido) {
       const nuevosIntentos = intentosFallidos + 1;
       const nuevoBloqueo = nuevosIntentos >= MAX_INTENTOS;
@@ -150,20 +135,28 @@ const login = async (req, res, next) => {
       });
     }
 
-    
     await autenticarModel.resetIntentos(idUsuario);
 
-    
     if (!process.env.JWT_SECRET) {
       return res.status(500).json({ ok: false, mensaje: "JWT_SECRET no está configurado en .env" });
     }
 
+    
     const payload = {
+      
       idUsuario,
+      usuarioId: idUsuario, 
       empleadoId,
+      Empleado_idEmpleado: empleadoId, 
+
+      
       nombreUsuario: user.NombreUsuario,
+
+      
       rolId: user.rolId,
-      rolNombre: user.rolNombre, 
+      rolNombre: user.rolNombre,
+      rol: user.rolNombre,  
+      role: user.rolNombre, 
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -186,7 +179,6 @@ const login = async (req, res, next) => {
   }
 };
 
-
 const registrar = async (req, res, next) => {
   try {
     const empleadoId = safeNum(req.body?.empleadoId);
@@ -201,25 +193,21 @@ const registrar = async (req, res, next) => {
       });
     }
 
-    
     const empOk = await autenticarModel.empleadoExiste(empleadoId, { soloActivos: true });
     if (!empOk) {
       return res.status(400).json({ ok: false, mensaje: "Empleado no existe o está inactivo" });
     }
 
-    
     const existe = await autenticarModel.nombreUsuarioExiste(nombreUsuario);
     if (existe) {
       return res.status(409).json({ ok: false, mensaje: "El nombre de usuario ya existe" });
     }
 
-    
     const rolOk = await autenticarModel.rolExisteActivo(rolId);
     if (!rolOk) {
       return res.status(400).json({ ok: false, mensaje: "Rol inválido o inactivo" });
     }
 
-    
     if (password.length < 6) {
       return res.status(400).json({ ok: false, mensaje: "El password debe tener al menos 6 caracteres." });
     }
@@ -242,7 +230,6 @@ const registrar = async (req, res, next) => {
     next(error);
   }
 };
-
 
 const obtenerRoles = async (req, res, next) => {
   try {

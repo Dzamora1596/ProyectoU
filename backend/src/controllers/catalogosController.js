@@ -119,6 +119,27 @@ async function obtenerCatalogosTiposHoraExtra(req, res, next) {
   }
 }
 
+async function obtenerCatalogosTiposPermiso(req, res, next) {
+  try {
+    const [tipos] = await db.query(
+      `
+      SELECT idCatalogo_Tipo_Permiso AS id,
+             Descripcion AS descripcion,
+             Activo
+      FROM catalogo_tipo_permiso
+      WHERE Activo = 1
+      ORDER BY Descripcion ASC
+      `
+    );
+
+    return ok(res, {
+      tipos: tipos.map((r) => ({ ...r, Activo: mapActivoBit(r) })),
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function obtenerCatalogosEstadosPorModulo(req, res, next) {
   try {
     const modulo = String(req.query.modulo || "").trim();
@@ -176,6 +197,7 @@ module.exports = {
   obtenerCatalogosRoles,
   obtenerCatalogosCadenciaPago,
   obtenerCatalogosTiposHoraExtra,
+  obtenerCatalogosTiposPermiso,
   obtenerCatalogosEstadosPorModulo,
   obtenerCatalogosPeriodos,
 };
