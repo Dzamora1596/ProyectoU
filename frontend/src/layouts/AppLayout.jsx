@@ -36,6 +36,13 @@ export default function AppLayout() {
 
   useEffect(() => {
     const tieneToken = Boolean(token && String(token).trim());
+
+    if (!tieneToken) {
+      limpiarSesion();
+      navigate("/login", { replace: true, state: { from: location.pathname } });
+      return;
+    }
+
     if (tieneToken && !user) {
       limpiarSesion();
       navigate("/login", { replace: true, state: { from: location.pathname } });
@@ -43,15 +50,15 @@ export default function AppLayout() {
   }, [token, user, navigate, location.pathname]);
 
   return (
-    <div className="app-shell" style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="app-shell" style={{ display: "flex", minHeight: "100vh" }}>
       <Menu user={user} onLogout={onLogout} />
-      <main 
-        className="app-content flex-grow-1" 
-        style={{ 
-          backgroundColor: 'var(--dm-gray-light)', 
-          padding: '2rem',
-          overflowY: 'auto',
-          maxHeight: '100vh'
+      <main
+        className="app-content flex-grow-1"
+        style={{
+          backgroundColor: "var(--dm-gray-light)",
+          padding: "2rem",
+          overflowY: "auto",
+          maxHeight: "100vh",
         }}
       >
         <div className="container-fluid p-0">

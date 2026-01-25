@@ -16,6 +16,7 @@ const correoRoutes = require("./routes/correoRoutes");
 const catalogosRoutes = require("./routes/catalogosRoutes");
 const horasExtraRoutes = require("./routes/horasExtraRoutes");
 const permisosRoutes = require("./routes/permisosRoutes");
+const vacacionesRoutes = require("./routes/vacacionesRoutes");
 const app = express();
 
 const allowedOrigins = (process.env.CORS_ORIGINS || "")
@@ -168,6 +169,7 @@ app.use("/api/correos", correoRoutes);
 app.use("/api/catalogos", catalogosRoutes);
 app.use("/api/horas-extra", horasExtraRoutes);
 app.use("/api/permisos", permisosRoutes);
+app.use("/api/vacaciones", vacacionesRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

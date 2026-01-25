@@ -2,6 +2,23 @@
 const jwt = require("jsonwebtoken");
 const db = require("../config/db");
 
+function normalizeRolNombre(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+
+  const key = s.toLowerCase().replace(/\s+/g, " ").trim();
+
+  if (key === "admin") return "Admin";
+  if (key === "jefatura") return "Jefatura";
+  if (key === "colaborador") return "Colaborador";
+  if (key === "personal de planilla") return "Personal de Planilla";
+
+  return key
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
 async function cargarEmpleadoIdSiFalta(user) {
   if (!user || !user.idUsuario) return;
 
@@ -14,7 +31,6 @@ async function cargarEmpleadoIdSiFalta(user) {
 
   if (Number(yaTraeEmpleado) > 0) return;
 
-  
   const tryQueries = [
     { sql: "SELECT Empleado_idEmpleado FROM Usuario WHERE idUsuario = ? LIMIT 1", map: (r) => r?.Empleado_idEmpleado },
     { sql: "SELECT Empleado_idEmpleado FROM usuario WHERE idUsuario = ? LIMIT 1", map: (r) => r?.Empleado_idEmpleado },
@@ -23,8 +39,10 @@ async function cargarEmpleadoIdSiFalta(user) {
 
   for (const q of tryQueries) {
     try {
-      const [rows] = await db.query(q.sql, [user.idUsuario]);
+      const res = await db.query(q.sql, [user.idUsuario]);
+      const rows = Array.isArray(res) && Array.isArray(res[0]) ? res[0] : res?.rows || res;
       const empId = Number(q.map(rows?.[0]) || 0);
+
       if (empId > 0) {
         user.Empleado_idEmpleado = empId;
         user.empleadoId = empId;
@@ -33,7 +51,7 @@ async function cargarEmpleadoIdSiFalta(user) {
         return;
       }
     } catch {
-     
+      
     }
   }
 }
@@ -74,14 +92,27 @@ module.exports = async (req, res, next) => {
         null;
     }
 
-    if (req.user && req.user.rol === undefined) {
-      req.user.rol =
-        req.user.role ??
-        req.user.Rol ??
-        req.user.rolUsuario ??
-        req.user.RolUsuario ??
-        "";
-    }
+    const rolRaw =
+      req.user?.rolNombre ??
+      req.user?.rol ??
+      req.user?.role ??
+      req.user?.Rol ??
+      req.user?.rolUsuario ??
+      req.user?.RolUsuario ??
+      req.usuario?.rolNombre ??
+      req.usuario?.rol ??
+      req.usuario?.role ??
+      req.usuario?.Rol ??
+      "";
+
+    const rolNombre = normalizeRolNombre(rolRaw);
+
+    req.usuario.rolNombre = rolNombre;
+    req.user.rolNombre = rolNombre;
+
+    req.user.rol = rolNombre;
+    req.user.role = rolNombre;
+    req.user.Rol = rolNombre;
 
     await cargarEmpleadoIdSiFalta(req.user);
 

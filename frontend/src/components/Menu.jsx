@@ -36,6 +36,8 @@ function puedeAcceder(user) {
     puedeVerSoloMiInfo: esColaborador,
     puedeVerHorarioEmpleado: esAdmin || esJefatura || esPlanilla,
     puedeVerCatalogosHorario: esAdmin || esJefatura,
+    puedeSolicitarVacaciones: esColaborador || esPlanilla,
+    puedeVerVacaciones: esAdmin || esJefatura || esPlanilla || esColaborador,
   };
 }
 
@@ -193,6 +195,12 @@ export default function Menu({ user, onLogout }) {
   if (perms.esJefatura || perms.esAdmin) {
     items.push({ type: "divider", key: "div-gestion", label: "Gestión" });
     items.push({ to: "/permisos", label: "Permisos", icon: "bi bi-envelope-paper" });
+  }
+
+  if (perms.puedeVerVacaciones) {
+    if (!(perms.esJefatura || perms.esAdmin)) {
+      items.push({ type: "divider", key: "div-gestion-vac", label: "Gestión" });
+    }
     items.push({ to: "/vacaciones", label: "Vacaciones", icon: "bi bi-sun" });
   }
 

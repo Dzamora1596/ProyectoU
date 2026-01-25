@@ -10,7 +10,6 @@ export default function Login() {
 
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
-
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,7 +23,6 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-
     const u = usuario.trim();
     const p = password;
 
@@ -47,13 +45,11 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
-       
       const destino = location.state?.from || "/inicio";
       navigate(destino, { replace: true });
     } catch (err) {
       const status = err?.response?.status;
       const msgBackend = err?.response?.data?.mensaje;
-
       if (msgBackend) {
         setError(msgBackend);
       } else if (status) {
@@ -67,8 +63,41 @@ export default function Login() {
   };
 
   return (
-    <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: "100vh" }}>
-      <Card style={{ width: "420px" }} className="shadow">
+    <Container 
+      fluid 
+      className="d-flex justify-content-center align-items-center" 
+      style={{ minHeight: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#96969600" }}
+    >
+      {/* CAPA DE IMAGEN DE FONDO */}
+      <div style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 0 // Se mantiene detrás del Card
+      }}>
+        <img
+          src="/Login.png"
+          alt="Inicio"
+          style={{
+            width: "100%",
+            maxWidth: "10000px",
+            maxHeight: "85vh",
+            objectFit: "contain",
+            maskImage: "radial-gradient(circle, black 100%, transparent 95%)",
+            WebkitMaskImage: "radial-gradient(circle, black 100%, transparent 100%)",
+            border: "none",
+            opacity: 0.6 // Opcional: para que no opaque el formulario
+          }}
+        />
+      </div>
+
+      {/* TARJETA DE LOGIN */}
+      <Card style={{ width: "420px", zIndex: 1 }} className="shadow">
         <Card.Body className="p-4">
           <h3 className="mb-3 text-center">Iniciar sesión</h3>
 
