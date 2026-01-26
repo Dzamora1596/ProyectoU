@@ -13,7 +13,6 @@ function parseTimeToMinutes(t) {
 }
 
 function minutesToTimeStr(mins) {
-   
   let m = Number(mins || 0);
   m = ((m % 1440) + 1440) % 1440;
   const hh = String(Math.floor(m / 60)).padStart(2, "0");
@@ -21,10 +20,26 @@ function minutesToTimeStr(mins) {
   return `${hh}:${mm}:00`;
 }
 
+/**
+ * Normaliza una fecha a 'YYYY-MM-DD'.
+ * Acepta:
+ *  - 'YYYY-MM-DD' (o 'YYYY-MM-DD HH:mm:ss')
+ *  - 'DD/MM/YYYY' (o 'DD/MM/YYYY HH:mm:ss')
+ */
 function ymd(v) {
   const s = String(v || "").trim();
   if (!s) return "";
+
+  // YYYY-MM-DD (o YYYY-MM-DD HH:mm:ss)
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+
+  // DD/MM/YYYY (o DD/MM/YYYY HH:mm:ss)
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) {
+    const [, dd, mm, yyyy] = m;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
   return "";
 }
 
@@ -32,7 +47,6 @@ function addDaysToYMD(ymdStr, days) {
   const d = String(ymdStr || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
 
-   
   const dt = new Date(`${d}T00:00:00.000Z`);
   dt.setUTCDate(dt.getUTCDate() + Number(days || 0));
   const yyyy = dt.getUTCFullYear();
@@ -43,9 +57,9 @@ function addDaysToYMD(ymdStr, days) {
 
 function cadenciaToHoursBase(desc) {
   const d = String(desc || "").trim().toLowerCase();
-  if (d.includes("mens")) return 240;  
-  if (d.includes("quin")) return 120;  
-  if (d.includes("seman")) return 48;  
+  if (d.includes("mens")) return 240;
+  if (d.includes("quin")) return 120;
+  if (d.includes("seman")) return 48;
   return 240;
 }
 
@@ -57,7 +71,6 @@ function round5(n) {
   return Math.round((Number(n) + Number.EPSILON) * 100000) / 100000;
 }
 
- 
 function buildSegmentsDiurnoNocturnoOrdered(startAbs, endAbs) {
   let s = Number(startAbs || 0);
   let e = Number(endAbs || 0);
@@ -65,7 +78,6 @@ function buildSegmentsDiurnoNocturnoOrdered(startAbs, endAbs) {
 
   const segments = [];
 
-   
   for (let day = 0; day < 2; day++) {
     const base = day * 1440;
     const dayStart = base;
@@ -75,20 +87,17 @@ function buildSegmentsDiurnoNocturnoOrdered(startAbs, endAbs) {
     const xEnd = Math.min(e, dayEnd);
     if (xEnd <= xStart) continue;
 
-    const diStart = base + 300;  
-    const diEnd = base + 1140;  
+    const diStart = base + 300;
+    const diEnd = base + 1140;
 
-    
     const n1s = xStart;
     const n1e = Math.min(xEnd, diStart);
     if (n1e > n1s) segments.push({ tipo: "NOCTURNA", inicio: n1s, fin: n1e });
 
-     
     const ds = Math.max(xStart, diStart);
     const de = Math.min(xEnd, diEnd);
     if (de > ds) segments.push({ tipo: "DIURNA", inicio: ds, fin: de });
 
-     
     const n2s = Math.max(xStart, diEnd);
     const n2e = xEnd;
     if (n2e > n2s) segments.push({ tipo: "NOCTURNA", inicio: n2s, fin: n2e });
@@ -96,7 +105,6 @@ function buildSegmentsDiurnoNocturnoOrdered(startAbs, endAbs) {
 
   segments.sort((a, b) => a.inicio - b.inicio);
 
-   
   const out = [];
   for (const seg of segments) {
     if (!seg || seg.fin <= seg.inicio) continue;
@@ -157,7 +165,6 @@ async function asegurarPeriodoAutoExacto(conn, desde, hasta) {
   return rows2?.length ? Number(rows2[0].id) || 0 : 0;
 }
 
- 
 async function calcularHorasExtraPeriodo(req, res, next) {
   let conn;
   try {
@@ -188,7 +195,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       });
     }
 
-     
     const [tipoRows] = await conn.query(
       `
       SELECT idCatalogo_Tipo_Hora_Extra AS id, Descripcion AS descripcion
@@ -197,12 +203,8 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       `
     );
 
-    const tipoDiurna = tipoRows.find((t) =>
-      String(t.descripcion || "").toLowerCase().includes("diurn")
-    );
-    const tipoNocturna = tipoRows.find((t) =>
-      String(t.descripcion || "").toLowerCase().includes("nocturn")
-    );
+    const tipoDiurna = tipoRows.find((t) => String(t.descripcion || "").toLowerCase().includes("diurn"));
+    const tipoNocturna = tipoRows.find((t) => String(t.descripcion || "").toLowerCase().includes("nocturn"));
 
     if (!tipoDiurna || !tipoNocturna) {
       await conn.rollback();
@@ -212,7 +214,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       });
     }
 
-     
     const [estadoPend] = await conn.query(
       `
       SELECT idCatalogo_Estado AS id
@@ -232,7 +233,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
 
     const estadoPendienteId = Number(estadoPend[0].id);
 
-     
     await conn.query(
       `
       UPDATE horas_extras he
@@ -261,7 +261,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       [estadoPendienteId, desdeBody, hastaBody]
     );
 
-     
     const [rows] = await conn.query(
       `
       SELECT
@@ -333,7 +332,9 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       if (!r.Entrada || String(r.Entrada).startsWith("00:00")) continue;
       if (!r.Salida || String(r.Salida).startsWith("00:00")) continue;
 
-      const fechaBase = String(r.Fecha).slice(0, 10);
+      // ✅ Normalizar fecha base venga como venga (YYYY-MM-DD o DD/MM/YYYY)
+      const fechaBase = ymd(r.Fecha);
+      if (!fechaBase) continue;
 
       const entradaTrab = parseTimeToMinutes(r.Entrada);
       const salidaTrabRaw = parseTimeToMinutes(r.Salida);
@@ -353,30 +354,29 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       const minutosHor = salidaHor - entradaHor;
       if (minutosHor <= 0) continue;
 
-      
-      let extraAntes = Math.max(0, entradaHor - entradaTrab);
-      let extraDespues = Math.max(0, salidaTrab - salidaHor);
+      // Ventanas de extra antes/después según comparación con horario
+      const extraAntes = Math.max(0, entradaHor - entradaTrab);
+      const extraDespues = Math.max(0, salidaTrab - salidaHor);
 
-      let minutosExtraTotal = extraAntes + extraDespues;
+      // ✅ Nueva regla: se paga extra si (minutosTrab) excede las horas permitidas del horario (minutosHor)
+      let minutosExtraTotal = Math.max(0, minutosTrab - minutosHor);
       if (minutosExtraTotal <= 0) continue;
 
-      
-      const maxTotal = 720;
-      if (minutosTrab > maxTotal) {
-        const exceso = minutosTrab - maxTotal;
-        minutosExtraTotal = Math.max(0, minutosExtraTotal - exceso);
-      }
-
-      
+      // Tope por día (ej. 4 horas extra máximo)
       const maxExtraDia = 240;
       minutosExtraTotal = Math.min(minutosExtraTotal, maxExtraDia);
       if (minutosExtraTotal <= 0) continue;
 
+      // Distribuir el extra calculado dentro de las ventanas (antes y/o después)
       let remaining = minutosExtraTotal;
+
       const antesFinal = Math.min(extraAntes, remaining);
       remaining -= antesFinal;
+
       const despuesFinal = Math.min(extraDespues, remaining);
       remaining -= despuesFinal;
+
+      if (antesFinal + despuesFinal <= 0) continue;
 
       const tramos = [];
       if (antesFinal > 0) {
@@ -392,7 +392,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       if (tarifaHora <= 0) continue;
 
       const esFeriado = Number(r.EsFeriado || 0) === 1;
- 
       const factorLey = esFeriado ? 3.0 : 1.5;
 
       let insertoDia = false;
@@ -415,8 +414,9 @@ async function calcularHorasExtraPeriodo(req, res, next) {
           const dayOffset = Math.floor(Number(seg.inicio) / 1440);
           const fechaReal = addDaysToYMD(fechaBase, dayOffset);
 
-          const hhmmssInicio = minutesToTimeStr(seg.inicio).slice(0, 8);
-          const fechaHoraInicio = `${fechaReal} ${hhmmssInicio}`;
+          // ✅ Fecha ahora es DATE en MySQL: enviamos solo YYYY-MM-DD
+          const fechaSolo = ymd(fechaReal);
+          if (!fechaSolo) continue;
 
           const descripcionFinal = `AUTO_${nombre}_${t.origen}${esFeriado ? "_FERIADO" : ""}`;
 
@@ -434,7 +434,7 @@ async function calcularHorasExtraPeriodo(req, res, next) {
               descripcionFinal,
               round5(monto),
               horasSeg,
-              fechaHoraInicio,
+              fechaSolo,
               minutesToTimeStr(seg.inicio),
               minutesToTimeStr(seg.fin),
             ]
@@ -442,7 +442,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
 
           const idExtra = ins.insertId;
 
-          
           await conn.query(
             `
             UPDATE estado_horasextra
@@ -528,7 +527,6 @@ async function listarHorasExtra(req, res, next) {
       }
     }
 
-     
     if (String(feriado ?? "").trim() !== "") {
       const f = String(feriado).trim().toLowerCase();
       const wants = f === "1" || f === "true" || f === "si" || f === "sí";
@@ -612,7 +610,7 @@ async function cambiarEstadoHoraExtra(req, res, next) {
     const idExtra = Number(req.params.id);
     const estadoId = Number(req.body?.estadoId);
     const idUsuario = req.usuario?.idUsuario;
-    const motivoRechazo = String(req.body?.motivoRechazo || "").trim(); // NOT NULL friendly
+    const motivoRechazo = String(req.body?.motivoRechazo || "").trim();
 
     if (!idExtra || Number.isNaN(idExtra) || idExtra <= 0) {
       return res.status(400).json({ ok: false, mensaje: "id inválido" });
@@ -625,7 +623,6 @@ async function cambiarEstadoHoraExtra(req, res, next) {
     conn = await db.getConnection();
     await conn.beginTransaction();
 
-     
     const [exists] = await conn.query(
       `SELECT idExtra FROM horas_extras WHERE idExtra = ? AND Activo = 1 LIMIT 1 FOR UPDATE`,
       [idExtra]
@@ -635,7 +632,6 @@ async function cambiarEstadoHoraExtra(req, res, next) {
       return res.status(404).json({ ok: false, mensaje: "Hora extra no encontrada" });
     }
 
-     
     const [est] = await conn.query(
       `
       SELECT idCatalogo_Estado AS id, Descripcion AS descripcion
@@ -652,13 +648,11 @@ async function cambiarEstadoHoraExtra(req, res, next) {
 
     const descEstado = String(est[0].descripcion || "").trim().toUpperCase();
 
-     
     if (descEstado === "RECHAZADO" && !motivoRechazo) {
       await conn.rollback();
       return res.status(400).json({ ok: false, mensaje: "Debe indicar motivoRechazo para RECHAZADO" });
     }
 
-     
     await conn.query(
       `UPDATE estado_horasextra SET Activo = 0 WHERE Horas_Extras_idExtra = ? AND Activo = 1`,
       [idExtra]

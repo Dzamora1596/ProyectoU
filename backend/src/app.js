@@ -1,7 +1,8 @@
-// app.js
+// backend/src/app.js
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const path = require("path");
 
 const db = require("./config/db");
 const errorHandler = require("./middlewares/errorHandler");
@@ -17,6 +18,8 @@ const catalogosRoutes = require("./routes/catalogosRoutes");
 const horasExtraRoutes = require("./routes/horasExtraRoutes");
 const permisosRoutes = require("./routes/permisosRoutes");
 const vacacionesRoutes = require("./routes/vacacionesRoutes");
+const incapacidadesRoutes = require("./routes/incapacidadesRoutes");
+
 const app = express();
 
 const allowedOrigins = (process.env.CORS_ORIGINS || "")
@@ -131,8 +134,18 @@ function dateMiddleware(req, res, next) {
 
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+/**
+ * ✅ SERVIR ARCHIVOS SUBIDOS (uploads/incapacidades, etc.)
+ * IMPORTANTE:
+ * - Esto expone /uploads/** públicamente.
+ * - Si luego quiere protegerlos por JWT, hacemos endpoint privado en lugar de static.
+ */
+const uploadsPath = path.resolve(process.cwd(), "uploads");
+app.use("/uploads", express.static(uploadsPath));
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -170,6 +183,7 @@ app.use("/api/catalogos", catalogosRoutes);
 app.use("/api/horas-extra", horasExtraRoutes);
 app.use("/api/permisos", permisosRoutes);
 app.use("/api/vacaciones", vacacionesRoutes);
+app.use("/api/incapacidades", incapacidadesRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

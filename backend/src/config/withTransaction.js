@@ -1,24 +1,27 @@
 // withTransaction.js
 const db = require("./db");
 
-
-async function ejecutarEnTransaccion(fn) {
+async function withTransaction(fn) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const resultado = await fn(conn);
+    const result = await fn(conn);
     await conn.commit();
-    return resultado;
+    return result;
   } catch (err) {
     try {
       await conn.rollback();
-    } catch (_) {
-      
-    }
+    } catch (_) {}
     throw err;
   } finally {
     conn.release();
   }
 }
 
-module.exports = { ejecutarEnTransaccion };
+// Compatibilidad con tu nombre anterior
+async function ejecutarEnTransaccion(fn) {
+  return withTransaction(fn);
+}
+
+module.exports = withTransaction;
+module.exports.ejecutarEnTransaccion = ejecutarEnTransaccion;

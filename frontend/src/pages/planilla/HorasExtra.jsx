@@ -20,18 +20,61 @@ import { calcularHorasExtra, listarHorasExtra, cambiarEstadoHoraExtra } from "..
 function pad2(n) {
   return String(Number(n || 0)).padStart(2, "0");
 }
-function ymd(d) {
-  if (!d) return "";
-  const dt = typeof d === "string" ? new Date(d) : d;
+
+/**
+ * Convierte cualquier cosa razonable a 'YYYY-MM-DD' sin problemas de zona horaria.
+ * Acepta:
+ *  - Date
+ *  - 'YYYY-MM-DD'
+ *  - 'YYYY/MM/DD'
+ *  - 'DD/MM/YYYY'
+ */
+function ymd(v) {
+  if (!v) return "";
+
+  // Date -> YYYY-MM-DD usando valores locales (no UTC)
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return "";
+    return `${v.getFullYear()}-${pad2(v.getMonth() + 1)}-${pad2(v.getDate())}`;
+  }
+
+  const s = String(v).trim();
+  if (!s) return "";
+
+  // Ya viene YYYY-MM-DD (como input type="date")
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // YYYY/MM/DD
+  let m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (m) {
+    const [, y, mo, d] = m;
+    return `${y}-${mo}-${d}`;
+  }
+
+  // DD/MM/YYYY
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) {
+    const [, dd, mm, yyyy] = m;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // Último recurso: intentar parseo, pero evitando desfase (no recomendado para YYYY-MM-DD)
+  const dt = new Date(s);
   if (isNaN(dt.getTime())) return "";
   return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
 }
+
+/**
+ * Parsea estrictamente 'YYYY-MM-DD' a Date (local) sin usar new Date('YYYY-MM-DD') por TZ.
+ */
 function parseYmd(s) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s || ""))) return null;
-  const [y, m, d] = s.split("-").map(Number);
+  const str = String(s || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
+  const [y, m, d] = str.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
   return isNaN(dt.getTime()) ? null : dt;
 }
+
 function startOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
@@ -69,15 +112,8 @@ function getAuthContext() {
   const payload = token ? decodeJwtPayload(token) : null;
 
   if (payload && typeof payload === "object") {
-    const role =
-      payload?.rolNombre ??
-      payload?.rol ??
-      payload?.role ??
-      payload?.Rol ??
-      "";
-
+    const role = payload?.rolNombre ?? payload?.rol ?? payload?.role ?? payload?.Rol ?? "";
     const roleStr = String(role || "").trim();
-
     return { role: roleStr };
   }
 
@@ -154,7 +190,7 @@ export default function HorasExtra() {
     setCargando(true);
     setError("");
     try {
-      const r = await listarHorasExtra({ desde: d, hasta: h });
+      const r = await listarHorasExtra({ desde: ymd(d), hasta: ymd(h) });
       setDatos(Array.isArray(r) ? r : []);
     } catch {
       setError("Error cargando horas extra");
@@ -188,7 +224,7 @@ export default function HorasExtra() {
     setCargando(true);
     setError("");
     try {
-      const r = await calcularHorasExtra({ desde, hasta });
+      const r = await calcularHorasExtra({ desde: ymd(desde), hasta: ymd(hasta) });
       setMensaje(`Cálculo ejecutado. Registros creados: ${r?.totalInsertadas || 0}`);
       await cargarListado();
     } catch {
@@ -275,7 +311,7 @@ export default function HorasExtra() {
                 type="date"
                 className="border-2"
                 value={desde}
-                onChange={(e) => setDesde(e.target.value)}
+                onChange={(e) => setDesde(ymd(e.target.value))}
               />
             </Col>
 
@@ -285,7 +321,7 @@ export default function HorasExtra() {
                 type="date"
                 className="border-2"
                 value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
+                onChange={(e) => setHasta(ymd(e.target.value))}
               />
             </Col>
 
