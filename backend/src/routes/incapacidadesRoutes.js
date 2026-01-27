@@ -15,20 +15,35 @@ const {
 
 const router = express.Router();
 
-// Todos los roles pueden ver/crear/consultar
-router.get("/", autenticarMiddleware, listarIncapacidades);
-router.get("/:id", autenticarMiddleware, obtenerIncapacidad);
-router.post("/", autenticarMiddleware, crearIncapacidad);
+router.get(
+  "/",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
+  listarIncapacidades
+);
 
-// Adjuntar comprobante (todos pueden subir)
+router.get(
+  "/:id",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
+  obtenerIncapacidad
+);
+
+router.post(
+  "/",
+  autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
+  crearIncapacidad
+);
+
 router.post(
   "/:id/archivo",
   autenticarMiddleware,
+  requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
   uploadIncapacidad.single("archivo"),
   subirArchivoIncapacidad
 );
 
-// Solo Admin y Jefatura aprueban/rechazan
 router.put(
   "/:id/aprobar",
   autenticarMiddleware,

@@ -20,20 +20,13 @@ function minutesToTimeStr(mins) {
   return `${hh}:${mm}:00`;
 }
 
-/**
- * Normaliza una fecha a 'YYYY-MM-DD'.
- * Acepta:
- *  - 'YYYY-MM-DD' (o 'YYYY-MM-DD HH:mm:ss')
- *  - 'DD/MM/YYYY' (o 'DD/MM/YYYY HH:mm:ss')
- */
+
 function ymd(v) {
   const s = String(v || "").trim();
   if (!s) return "";
 
-  // YYYY-MM-DD (o YYYY-MM-DD HH:mm:ss)
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
 
-  // DD/MM/YYYY (o DD/MM/YYYY HH:mm:ss)
   const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (m) {
     const [, dd, mm, yyyy] = m;
@@ -332,7 +325,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       if (!r.Entrada || String(r.Entrada).startsWith("00:00")) continue;
       if (!r.Salida || String(r.Salida).startsWith("00:00")) continue;
 
-      // ✅ Normalizar fecha base venga como venga (YYYY-MM-DD o DD/MM/YYYY)
       const fechaBase = ymd(r.Fecha);
       if (!fechaBase) continue;
 
@@ -354,20 +346,16 @@ async function calcularHorasExtraPeriodo(req, res, next) {
       const minutosHor = salidaHor - entradaHor;
       if (minutosHor <= 0) continue;
 
-      // Ventanas de extra antes/después según comparación con horario
       const extraAntes = Math.max(0, entradaHor - entradaTrab);
       const extraDespues = Math.max(0, salidaTrab - salidaHor);
 
-      // ✅ Nueva regla: se paga extra si (minutosTrab) excede las horas permitidas del horario (minutosHor)
       let minutosExtraTotal = Math.max(0, minutosTrab - minutosHor);
       if (minutosExtraTotal <= 0) continue;
 
-      // Tope por día (ej. 4 horas extra máximo)
       const maxExtraDia = 240;
       minutosExtraTotal = Math.min(minutosExtraTotal, maxExtraDia);
       if (minutosExtraTotal <= 0) continue;
 
-      // Distribuir el extra calculado dentro de las ventanas (antes y/o después)
       let remaining = minutosExtraTotal;
 
       const antesFinal = Math.min(extraAntes, remaining);
@@ -414,7 +402,6 @@ async function calcularHorasExtraPeriodo(req, res, next) {
           const dayOffset = Math.floor(Number(seg.inicio) / 1440);
           const fechaReal = addDaysToYMD(fechaBase, dayOffset);
 
-          // ✅ Fecha ahora es DATE en MySQL: enviamos solo YYYY-MM-DD
           const fechaSolo = ymd(fechaReal);
           if (!fechaSolo) continue;
 

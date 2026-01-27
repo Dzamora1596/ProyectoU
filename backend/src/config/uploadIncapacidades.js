@@ -6,7 +6,6 @@ const crypto = require("crypto");
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "incapacidades");
 
-// Asegura que exista la carpeta
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -58,7 +57,7 @@ const uploadIncapacidad = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 10 * 1024 * 1024, 
   },
 });
 

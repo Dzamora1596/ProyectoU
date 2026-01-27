@@ -5,49 +5,49 @@ const fs = require("fs");
 const db = require("../config/db");
 const withTransaction = require("../config/withTransaction");
 
-/**
- * Intenta obtener el contexto de autenticación sin asumir un nombre exacto.
- * Ajusta a tu middleware sin romper.
- */
+let asistenciaService = null;
+try {
+  asistenciaService = require("./asistenciaController");
+} catch (_) {
+  asistenciaService = null;
+}
+
 function getAuthContext(req) {
   const u = req.user || req.usuario || req.auth || req.sessionUser || {};
 
   const idUsuario = u.idUsuario ?? u.usuarioId ?? u.id ?? req.idUsuario ?? null;
-
-  const rol =
-    u.rol ??
-    u.role ??
-    u.NombreRol ??
-    u.descripcionRol ??
-    req.rol ??
-    null;
-
-  const empleadoId =
-    u.Empleado_idEmpleado ??
-    u.empleadoId ??
-    u.idEmpleado ??
-    req.idEmpleado ??
-    null;
+  const rol = u.rol ?? u.role ?? u.NombreRol ?? u.descripcionRol ?? req.rol ?? null;
+  const empleadoId = u.Empleado_idEmpleado ?? u.empleadoId ?? u.idEmpleado ?? req.idEmpleado ?? null;
 
   return { idUsuario, rol, empleadoId, raw: u };
 }
 
 function isAdminOrJefatura(rol) {
-  const r = String(rol || "").toLowerCase();
+  const r = String(rol || "").toLowerCase().trim();
   return r === "admin" || r === "jefatura";
 }
 
 function isPlanilla(rol) {
-  return String(rol || "").toLowerCase().includes("planilla");
+  const r = String(rol || "").toLowerCase().trim();
+  return r === "personal de planilla" || r.includes("planilla");
 }
 
 function isColaborador(rol) {
-  return String(rol || "").toLowerCase() === "colaborador";
+  return String(rol || "").toLowerCase().trim() === "colaborador";
 }
 
-/**
- * Helpers DB: soporta mysql2/promise o callbacks (promisify básico)
- */
+function isSelfOnlyRole(rol) {
+  return isColaborador(rol) || isPlanilla(rol);
+}
+
+function canCreateOrUpload(rol) {
+  return isAdminOrJefatura(rol) || isSelfOnlyRole(rol);
+}
+
+function canValidate(rol) {
+  return isAdminOrJefatura(rol);
+}
+
 async function q(connOrDb, sql, params) {
   if (!connOrDb || typeof connOrDb.query !== "function") {
     throw new Error("DB no disponible o mal configurada.");
@@ -67,9 +67,34 @@ async function q(connOrDb, sql, params) {
   });
 }
 
-/**
- * Busca idCatalogo_Estado por (Modulo, Descripcion) exacto.
- */
+function toSqlDateOnly(value) {
+  const s0 = String(value || "").trim();
+  if (!s0) return "";
+
+  const dmy = s0.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (dmy) {
+    const [, dd, mm, yyyy] = dmy;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  const iso = s0.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${y}-${m}-${d}`;
+  }
+
+  const t = Date.parse(s0);
+  if (!Number.isNaN(t)) {
+    const d = new Date(t);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return "";
+}
+
 async function getEstadoIdExact(conn, modulo, descripcion) {
   const rows = await q(
     conn,
@@ -85,9 +110,6 @@ async function getEstadoIdExact(conn, modulo, descripcion) {
   return rows[0].idCatalogo_Estado;
 }
 
-/**
- * Busca idCatalogo_Estado probando múltiples descripciones (en orden).
- */
 async function getEstadoIdFlexible(conn, modulo, descripciones) {
   for (const d of descripciones) {
     const id = await getEstadoIdExact(conn, modulo, d);
@@ -96,21 +118,92 @@ async function getEstadoIdFlexible(conn, modulo, descripciones) {
   return null;
 }
 
-// Tus descripciones reales (y variantes por si cambian)
+async function getPeriodoIdByFecha(conn, fecha) {
+  if (!fecha) return null;
+
+  const fechaSql = toSqlDateOnly(fecha);
+  if (!fechaSql) return null;
+
+  const rows = await q(
+    conn,
+    `
+    SELECT idCatalogo_Periodo
+      FROM catalogo_periodo
+     WHERE Activo = b'1'
+       AND ? BETWEEN Fecha_Inicio AND Fecha_Fin
+     ORDER BY Fecha_Inicio DESC, idCatalogo_Periodo DESC
+     LIMIT 1
+    `,
+    [fechaSql]
+  );
+  return rows && rows[0] ? rows[0].idCatalogo_Periodo : null;
+}
+
+async function getEmpleadoIdByUsuario(connOrDb, idUsuario) {
+  if (!idUsuario) return null;
+
+  const queries = [
+    `SELECT Empleado_idEmpleado AS idEmpleado FROM usuario WHERE idUsuario = ? LIMIT 1`,
+    `SELECT idEmpleado AS idEmpleado FROM usuario WHERE idUsuario = ? LIMIT 1`,
+    `SELECT Empleado_idEmpleado AS idEmpleado FROM usuarios WHERE idUsuario = ? LIMIT 1`,
+    `SELECT idEmpleado AS idEmpleado FROM usuarios WHERE idUsuario = ? LIMIT 1`,
+  ];
+
+  for (const sql of queries) {
+    try {
+      const rows = await q(connOrDb, sql, [idUsuario]);
+      const id = rows && rows[0] ? rows[0].idEmpleado : null;
+      if (id) return id;
+    } catch (_e) {}
+  }
+
+  return null;
+}
+
+async function resolveEmpleadoForSelfOnly({ rol, empleadoId, idUsuario }) {
+  if (!isSelfOnlyRole(rol)) return empleadoId || null;
+
+  if (empleadoId) return empleadoId;
+
+  const id = await getEmpleadoIdByUsuario(db, idUsuario);
+  return id || null;
+}
+
 const ESTADOS_INCAP = {
   PENDIENTE: ["PENDIENTE_VALIDACION", "PENDIENTE", "PENDIENTE VALIDACION"],
   APROBADA: ["VALIDADA", "APROBADA", "APROBADO", "APROBADa", "VALIDADO"],
   RECHAZADA: ["RECHAZADA", "RECHAZADO"],
 };
 
-/**
- * LISTAR
- * - Admin/Jefatura/Planilla: ven todas
- * - Colaborador: ve solo las suyas (por su empleadoId)
- */
+function truncObs(s) {
+  const v = String(s ?? "").trim();
+  if (!v) return "";
+  return v.length > 250 ? v.slice(0, 250) : v;
+}
+
+function pickObsFromBody(body) {
+  const b = body || {};
+  return truncObs(b.Observacion ?? b.observacion ?? b.Motivo ?? b.motivo ?? "");
+}
+
 async function listarIncapacidades(req, res) {
   try {
-    const { rol, empleadoId } = getAuthContext(req);
+    const { rol, empleadoId, idUsuario } = getAuthContext(req);
+
+    if (!canCreateOrUpload(rol) && !canValidate(rol)) {
+      return res.status(403).json({ message: "No autorizado." });
+    }
+
+    let empleadoFiltro = null;
+
+    if (isSelfOnlyRole(rol)) {
+      empleadoFiltro = await resolveEmpleadoForSelfOnly({ rol, empleadoId, idUsuario });
+      if (!empleadoFiltro) {
+        return res.status(400).json({
+          message: "No se pudo determinar el empleado del usuario autenticado.",
+        });
+      }
+    }
 
     let sql = `
       SELECT
@@ -140,14 +233,9 @@ async function listarIncapacidades(req, res) {
 
     const params = [];
 
-    if (isColaborador(rol)) {
-      if (!empleadoId) {
-        return res.status(400).json({
-          message: "No se pudo determinar el empleado del colaborador autenticado.",
-        });
-      }
+    if (empleadoFiltro) {
       sql += ` AND i.Empleado_idEmpleado = ? `;
-      params.push(empleadoId);
+      params.push(empleadoFiltro);
     }
 
     sql += ` ORDER BY i.idIncapacidad DESC `;
@@ -160,16 +248,14 @@ async function listarIncapacidades(req, res) {
   }
 }
 
-/**
- * OBTENER DETALLE
- * - Admin/Jefatura/Planilla: cualquiera
- * - Colaborador: solo la suya
- * Incluye archivo "actual" (si existe)
- */
 async function obtenerIncapacidad(req, res) {
   try {
-    const { rol, empleadoId } = getAuthContext(req);
+    const { rol, empleadoId, idUsuario } = getAuthContext(req);
     const id = Number(req.params.id);
+
+    if (!canCreateOrUpload(rol) && !canValidate(rol)) {
+      return res.status(403).json({ message: "No autorizado." });
+    }
 
     if (!id) return res.status(400).json({ message: "ID inválido." });
 
@@ -200,8 +286,9 @@ async function obtenerIncapacidad(req, res) {
 
     const incapacidad = rows[0];
 
-    if (isColaborador(rol)) {
-      if (!empleadoId || Number(incapacidad.Empleado_idEmpleado) !== Number(empleadoId)) {
+    if (isSelfOnlyRole(rol)) {
+      const empleadoFinal = await resolveEmpleadoForSelfOnly({ rol, empleadoId, idUsuario });
+      if (!empleadoFinal || Number(incapacidad.Empleado_idEmpleado) !== Number(empleadoFinal)) {
         return res.status(403).json({ message: "No autorizado." });
       }
     }
@@ -238,15 +325,13 @@ async function obtenerIncapacidad(req, res) {
   }
 }
 
-/**
- * CREAR INCAPACIDAD
- * - Todos pueden crear
- * - Colaborador: se fuerza a su empleadoId (ignora el Empleado_idEmpleado del body)
- * Estado por defecto: PENDIENTE_VALIDACION (según tu catálogo)
- */
 async function crearIncapacidad(req, res) {
   try {
     const { rol, empleadoId, idUsuario } = getAuthContext(req);
+
+    if (!canCreateOrUpload(rol)) {
+      return res.status(403).json({ message: "No autorizado." });
+    }
 
     const {
       Empleado_idEmpleado,
@@ -259,17 +344,42 @@ async function crearIncapacidad(req, res) {
       Activo,
     } = req.body || {};
 
-    const empleadoFinal = isColaborador(rol) ? empleadoId : Empleado_idEmpleado;
+    let empleadoFinal = Empleado_idEmpleado;
+
+    if (isSelfOnlyRole(rol)) {
+      empleadoFinal = await resolveEmpleadoForSelfOnly({ rol, empleadoId, idUsuario });
+    }
 
     if (!empleadoFinal) return res.status(400).json({ message: "Empleado requerido." });
     if (!Tipo_Incapacidad_idTipo_Incapacidad)
       return res.status(400).json({ message: "Tipo de incapacidad requerido." });
-    if (!Catalogo_Periodo_idCatalogo_Periodo)
-      return res.status(400).json({ message: "Período requerido." });
     if (!Fecha_Inicio || !Fecha_Fin)
       return res.status(400).json({ message: "Fechas de inicio/fin requeridas." });
 
-    // Si envían estado explícito lo respeta; si no, usa PENDIENTE_VALIDACION (11)
+    const fechaInicioSql = toSqlDateOnly(Fecha_Inicio);
+    const fechaFinSql = toSqlDateOnly(Fecha_Fin);
+
+    if (!fechaInicioSql || !fechaFinSql) {
+      return res.status(400).json({
+        message: "Formato de Fecha_Inicio/Fecha_Fin inválido. Use dd/mm/yyyy (sin hora).",
+      });
+    }
+
+    if (fechaInicioSql > fechaFinSql) {
+      return res.status(400).json({ message: "Fecha_Fin no puede ser menor que Fecha_Inicio." });
+    }
+
+    let periodoFinal = Catalogo_Periodo_idCatalogo_Periodo;
+
+    if (!periodoFinal) {
+      periodoFinal = await getPeriodoIdByFecha(db, fechaInicioSql);
+      if (!periodoFinal) {
+        return res.status(400).json({
+          message: "No se encontró un período activo que cubra la Fecha_Inicio.",
+        });
+      }
+    }
+
     let estadoFinal = Catalogo_Estado_idCatalogo_Estado;
 
     if (!estadoFinal) {
@@ -301,17 +411,16 @@ async function crearIncapacidad(req, res) {
     const params = [
       empleadoFinal,
       Tipo_Incapacidad_idTipo_Incapacidad,
-      Catalogo_Periodo_idCatalogo_Periodo,
+      periodoFinal,
       estadoFinal,
       Descripcion || "",
-      Fecha_Inicio,
-      Fecha_Fin,
+      fechaInicioSql,
+      fechaFinSql,
       Activo === 0 || Activo === "0" ? 0 : 1,
     ];
 
     const result = await q(db, insertSql, params);
 
-    // Bitácora
     if (idUsuario) {
       try {
         await q(
@@ -335,21 +444,22 @@ async function crearIncapacidad(req, res) {
   }
 }
 
-/**
- * SUBIR ARCHIVO Y REGISTRAR EN incapacidad_archivo (Opción B)
- * - Versiona: incrementa Version
- * - Deja solo 1 EsActual=1
- */
 async function subirArchivoIncapacidad(req, res) {
   const id = Number(req.params.id);
 
   try {
     const { idUsuario, rol, empleadoId } = getAuthContext(req);
 
+    if (!canCreateOrUpload(rol)) {
+      try {
+        if (req.file && req.file.path) fs.unlinkSync(req.file.path);
+      } catch (_e) {}
+      return res.status(403).json({ message: "No autorizado." });
+    }
+
     if (!id) return res.status(400).json({ message: "ID inválido." });
     if (!req.file) return res.status(400).json({ message: "Debe adjuntar un archivo (campo: archivo)." });
 
-    // Validar acceso si es Colaborador
     const incRows = await q(
       db,
       `SELECT idIncapacidad, Empleado_idEmpleado
@@ -361,22 +471,30 @@ async function subirArchivoIncapacidad(req, res) {
     );
 
     if (!incRows || incRows.length === 0) {
-      try { fs.unlinkSync(req.file.path); } catch (_e) {}
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (_e) {}
       return res.status(404).json({ message: "Incapacidad no encontrada." });
     }
 
     const incap = incRows[0];
 
-    if (isColaborador(rol)) {
-      if (!empleadoId || Number(incap.Empleado_idEmpleado) !== Number(empleadoId)) {
-        try { fs.unlinkSync(req.file.path); } catch (_e) {}
+    if (isSelfOnlyRole(rol)) {
+      const empleadoFinal = await resolveEmpleadoForSelfOnly({
+        rol,
+        empleadoId,
+        idUsuario,
+      });
+
+      if (!empleadoFinal || Number(incap.Empleado_idEmpleado) !== Number(empleadoFinal)) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (_e) {}
         return res.status(403).json({ message: "No autorizado." });
       }
     }
 
-    const relativePath = path
-      .join("uploads", "incapacidades", req.file.filename)
-      .replace(/\\/g, "/");
+    const relativePath = path.join("uploads", "incapacidades", req.file.filename).replace(/\\/g, "/");
 
     await withTransaction(async (conn) => {
       const verRows = await q(
@@ -388,8 +506,7 @@ async function subirArchivoIncapacidad(req, res) {
         [id]
       );
 
-      const nextVersion =
-        verRows && verRows[0] && verRows[0].maxVer ? Number(verRows[0].maxVer) + 1 : 1;
+      const nextVersion = verRows && verRows[0] && verRows[0].maxVer ? Number(verRows[0].maxVer) + 1 : 1;
 
       await q(
         conn,
@@ -454,21 +571,25 @@ async function subirArchivoIncapacidad(req, res) {
     });
   } catch (err) {
     console.error("subirArchivoIncapacidad:", err);
-    try { if (req.file && req.file.path) fs.unlinkSync(req.file.path); } catch (_e) {}
+    try {
+      if (req.file && req.file.path) fs.unlinkSync(req.file.path);
+    } catch (_e) {}
     return res.status(500).json({ message: "Error al adjuntar archivo." });
   }
 }
 
-/**
- * APROBAR (VALIDAR)
- * Solo Admin/Jefatura (la ruta ya restringe)
- * Cambia Catalogo_Estado a VALIDADA (12)
- */
 async function aprobarIncapacidad(req, res) {
   try {
-    const { idUsuario } = getAuthContext(req);
+    const { idUsuario, rol } = getAuthContext(req);
+
+    if (!canValidate(rol)) {
+      return res.status(403).json({ message: "No autorizado." });
+    }
+
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
+
+    const Observacion = pickObsFromBody(req.body);
 
     const estadoValidadaId = await getEstadoIdFlexible(db, "INCAPACIDAD", ESTADOS_INCAP.APROBADA);
     if (!estadoValidadaId) {
@@ -477,54 +598,117 @@ async function aprobarIncapacidad(req, res) {
       });
     }
 
-    const result = await q(
-      db,
-      `
-      UPDATE incapacidad
-         SET Catalogo_Estado_idCatalogo_Estado = ?
-       WHERE idIncapacidad = ?
-         AND Activo = b'1'
-      `,
-      [estadoValidadaId, id]
-    );
+    let incapacidadActualizada = null;
 
-    if (!result || result.affectedRows === 0) {
+    await withTransaction(async (conn) => {
+      const incRows = await q(
+        conn,
+        `
+        SELECT
+          i.idIncapacidad,
+          i.Empleado_idEmpleado,
+          i.Fecha_Inicio,
+          i.Fecha_Fin,
+          i.Catalogo_Estado_idCatalogo_Estado
+        FROM incapacidad i
+        WHERE i.idIncapacidad = ?
+          AND i.Activo = b'1'
+        LIMIT 1
+        FOR UPDATE
+        `,
+        [id]
+      );
+
+      if (!incRows || incRows.length === 0) {
+        const e = new Error("NOT_FOUND");
+        e.code = "NOT_FOUND";
+        throw e;
+      }
+
+      await q(
+        conn,
+        `
+        UPDATE incapacidad
+           SET Catalogo_Estado_idCatalogo_Estado = ?
+         WHERE idIncapacidad = ?
+           AND Activo = b'1'
+        `,
+        [estadoValidadaId, id]
+      );
+
+      const iniSql = toSqlDateOnly(incRows[0].Fecha_Inicio);
+      const finSql = toSqlDateOnly(incRows[0].Fecha_Fin);
+
+      if (asistenciaService && typeof asistenciaService.aplicarIncapacidadEnAsistencia === "function") {
+        await asistenciaService.aplicarIncapacidadEnAsistencia(conn, {
+          idIncapacidad: incRows[0].idIncapacidad,
+          Empleado_idEmpleado: incRows[0].Empleado_idEmpleado,
+          Fecha_Inicio: iniSql || incRows[0].Fecha_Inicio,
+          Fecha_Fin: finSql || incRows[0].Fecha_Fin,
+          Usuario_idUsuario: idUsuario || null,
+          Observacion,
+        });
+      }
+
+      if (idUsuario) {
+        try {
+          const accion = Observacion ? `VALIDAR: ${Observacion}` : "VALIDAR";
+          await q(
+            conn,
+            `
+            INSERT INTO bitacora (Tabla_Afectada, IdRegistro, Accion_Realizada, Usuario_idUsuario, Activo)
+            VALUES ('incapacidad', ?, ?, ?, b'1')
+            `,
+            [String(id), accion.slice(0, 200), idUsuario]
+          );
+        } catch (_e) {}
+      }
+
+      const outRows = await q(
+        conn,
+        `
+        SELECT
+          i.*,
+          ce.Descripcion AS Estado
+        FROM incapacidad i
+        LEFT JOIN catalogo_estado ce
+          ON ce.idCatalogo_Estado = i.Catalogo_Estado_idCatalogo_Estado
+        WHERE i.idIncapacidad = ?
+          AND i.Activo = b'1'
+        LIMIT 1
+        `,
+        [id]
+      );
+
+      incapacidadActualizada = outRows && outRows[0] ? outRows[0] : null;
+    });
+
+    if (!incapacidadActualizada) {
       return res.status(404).json({ message: "Incapacidad no encontrada." });
     }
 
-    if (idUsuario) {
-      try {
-        await q(
-          db,
-          `
-          INSERT INTO bitacora (Tabla_Afectada, IdRegistro, Accion_Realizada, Usuario_idUsuario, Activo)
-          VALUES ('incapacidad', ?, 'VALIDAR', ?, b'1')
-          `,
-          [String(id), idUsuario]
-        );
-      } catch (_e) {}
-    }
-
-    return res.json({ message: "Incapacidad validada." });
+    return res.json({ message: "Incapacidad validada.", incapacidad: incapacidadActualizada });
   } catch (err) {
+    if (err && (err.code === "NOT_FOUND" || err.message === "NOT_FOUND")) {
+      return res.status(404).json({ message: "Incapacidad no encontrada." });
+    }
     console.error("aprobarIncapacidad:", err);
     return res.status(500).json({ message: "Error al validar incapacidad." });
   }
 }
 
-/**
- * RECHAZAR
- * Solo Admin/Jefatura (la ruta ya restringe)
- * Cambia Catalogo_Estado a RECHAZADA (13)
- * (Motivo puede venir en body.Motivo)
- */
 async function rechazarIncapacidad(req, res) {
   try {
-    const { idUsuario } = getAuthContext(req);
-    const id = Number(req.params.id);
-    const { Motivo } = req.body || {};
+    const { idUsuario, rol } = getAuthContext(req);
 
+    if (!canValidate(rol)) {
+      return res.status(403).json({ message: "No autorizado." });
+    }
+
+    const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
+
+    const Motivo = pickObsFromBody(req.body);
 
     const estadoRechazadaId = await getEstadoIdFlexible(db, "INCAPACIDAD", ESTADOS_INCAP.RECHAZADA);
     if (!estadoRechazadaId) {
@@ -533,37 +717,104 @@ async function rechazarIncapacidad(req, res) {
       });
     }
 
-    const result = await q(
-      db,
-      `
-      UPDATE incapacidad
-         SET Catalogo_Estado_idCatalogo_Estado = ?
-       WHERE idIncapacidad = ?
-         AND Activo = b'1'
-      `,
-      [estadoRechazadaId, id]
-    );
+    let incForAsistencia = null;
 
-    if (!result || result.affectedRows === 0) {
-      return res.status(404).json({ message: "Incapacidad no encontrada." });
-    }
+    await withTransaction(async (conn) => {
+      const incRows = await q(
+        conn,
+        `
+        SELECT
+          i.idIncapacidad,
+          i.Empleado_idEmpleado,
+          i.Fecha_Inicio,
+          i.Fecha_Fin
+        FROM incapacidad i
+        WHERE i.idIncapacidad = ?
+          AND i.Activo = b'1'
+        LIMIT 1
+        FOR UPDATE
+        `,
+        [id]
+      );
 
-    if (idUsuario) {
-      const accion = Motivo ? `RECHAZAR: ${String(Motivo).slice(0, 200)}` : "RECHAZAR";
-      try {
+      if (!incRows || incRows.length === 0) {
+        const e = new Error("NOT_FOUND");
+        e.code = "NOT_FOUND";
+        throw e;
+      }
+
+      incForAsistencia = incRows[0];
+
+      const result = await q(
+        conn,
+        `
+        UPDATE incapacidad
+           SET Catalogo_Estado_idCatalogo_Estado = ?
+         WHERE idIncapacidad = ?
+           AND Activo = b'1'
+        `,
+        [estadoRechazadaId, id]
+      );
+
+      if (!result || result.affectedRows === 0) {
+        const e = new Error("NOT_FOUND");
+        e.code = "NOT_FOUND";
+        throw e;
+      }
+
+      const empleadoId = Number(incForAsistencia.Empleado_idEmpleado || 0);
+      const iniSql = toSqlDateOnly(incForAsistencia.Fecha_Inicio);
+      const finSql = toSqlDateOnly(incForAsistencia.Fecha_Fin);
+
+      if (empleadoId && iniSql && finSql) {
+        const obsPref = `RECHAZADA (Incapacidad #${id})`;
+        const obsFinal = Motivo ? `${obsPref}: ${Motivo}` : obsPref;
+
         await q(
-          db,
+          conn,
           `
-          INSERT INTO bitacora (Tabla_Afectada, IdRegistro, Accion_Realizada, Usuario_idUsuario, Activo)
-          VALUES ('incapacidad', ?, ?, ?, b'1')
+          UPDATE Asistencia a
+             SET a.Observacion = CASE
+               WHEN a.Observacion IS NULL OR TRIM(a.Observacion) = '' THEN ?
+               ELSE CONCAT(
+                 ?, ': ',
+                 TRIM(
+                   REGEXP_REPLACE(
+                     TRIM(a.Observacion),
+                     '^(RECHAZADA|DIA DE INCAPACIDAD|INCAPACIDAD)([^:]*):\\\\s*',
+                     ''
+                   )
+                 )
+               )
+             END
+           WHERE a.Activo = 1
+             AND a.Empleado_idEmpleado = ?
+             AND DATE(a.Fecha) BETWEEN DATE(?) AND DATE(?)
           `,
-          [String(id), accion, idUsuario]
+          [obsFinal, obsPref, empleadoId, iniSql, finSql]
         );
-      } catch (_e) {}
-    }
+      }
+
+      if (idUsuario) {
+        try {
+          const accion = Motivo ? `RECHAZAR: ${Motivo}` : "RECHAZAR";
+          await q(
+            conn,
+            `
+            INSERT INTO bitacora (Tabla_Afectada, IdRegistro, Accion_Realizada, Usuario_idUsuario, Activo)
+            VALUES ('incapacidad', ?, ?, ?, b'1')
+            `,
+            [String(id), accion.slice(0, 200), idUsuario]
+          );
+        } catch (_e) {}
+      }
+    });
 
     return res.json({ message: "Incapacidad rechazada." });
   } catch (err) {
+    if (err && (err.code === "NOT_FOUND" || err.message === "NOT_FOUND")) {
+      return res.status(404).json({ message: "Incapacidad no encontrada." });
+    }
     console.error("rechazarIncapacidad:", err);
     return res.status(500).json({ message: "Error al rechazar incapacidad." });
   }

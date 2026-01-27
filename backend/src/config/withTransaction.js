@@ -18,7 +18,6 @@ async function withTransaction(fn) {
   }
 }
 
-// Compatibilidad con tu nombre anterior
 async function ejecutarEnTransaccion(fn) {
   return withTransaction(fn);
 }

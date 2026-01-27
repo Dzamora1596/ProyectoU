@@ -119,7 +119,8 @@ function getAuthContext() {
   if (payload && typeof payload === "object") {
     const role = payload?.rolNombre ?? payload?.rol ?? payload?.role ?? payload?.Rol ?? "";
 
-    const empleadoId = payload?.empleadoId ?? payload?.Empleado_idEmpleado ?? payload?.idEmpleado ?? payload?.EmpleadoId ?? null;
+    const empleadoId =
+      payload?.empleadoId ?? payload?.Empleado_idEmpleado ?? payload?.idEmpleado ?? payload?.EmpleadoId ?? null;
 
     const nombre = payload?.nombre ?? payload?.Nombre ?? payload?.NombreCompleto ?? payload?.nombreUsuario ?? "";
 
@@ -213,7 +214,8 @@ export default function Permisos() {
         return;
       }
 
-      const nombre = emp?.nombreCompleto || emp?.nombre || (emp?.idEmpleado ? `Empleado ${emp.idEmpleado}` : "Empleado");
+      const nombre =
+        emp?.nombreCompleto || emp?.nombre || (emp?.idEmpleado ? `Empleado ${emp.idEmpleado}` : "Empleado");
       const row = { idEmpleado: Number(emp.idEmpleado), nombre: String(nombre) };
 
       setMiEmpleado(emp);
@@ -249,18 +251,26 @@ export default function Permisos() {
     }
   }, [esColaborador, cargarMiEmpleado]);
 
+  // ✅ FIX: leer correctamente lo que devuelve su backend: { ok:true, tiposPermiso:[...] }
   const cargarTiposPermiso = useCallback(async () => {
     try {
       const { data } = await api.get("/catalogos/tipos-permiso");
-      const lista = Array.isArray(data?.tipos) ? data.tipos : Array.isArray(data) ? data : [];
+
+      const lista =
+        Array.isArray(data?.tiposPermiso) ? data.tiposPermiso :
+        Array.isArray(data?.tipos) ? data.tipos :
+        Array.isArray(data) ? data :
+        [];
+
       const mapped = lista
         .map((t) => ({
           id: Number(t?.idCatalogo_Tipo_Permiso ?? t?.id ?? t?.Id ?? 0),
-          descripcion: String(t?.Descripcion ?? t?.descripcion ?? t?.Nombre ?? ""),
+          descripcion: String(t?.Descripcion ?? t?.descripcion ?? t?.Nombre ?? t?.nombre ?? ""),
           activo: Number(t?.Activo ?? t?.activo ?? 1),
         }))
         .filter((x) => x.id && x.descripcion)
         .sort((a, b) => a.descripcion.localeCompare(b.descripcion));
+
       setTipos(mapped);
     } catch {
       setTipos([]);
@@ -530,7 +540,12 @@ export default function Permisos() {
               <Button size="sm" variant="danger" disabled={!puedeAccionar || accionLoading} onClick={() => rechazar(id)}>
                 Rechazar
               </Button>
-              <Button size="sm" variant="outline-secondary" disabled={!activo || accionLoading} onClick={() => desactivar(id)}>
+              <Button
+                size="sm"
+                variant="outline-secondary"
+                disabled={!activo || accionLoading}
+                onClick={() => desactivar(id)}
+              >
                 Desactivar
               </Button>
             </div>

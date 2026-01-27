@@ -133,7 +133,28 @@ async function obtenerCatalogosTiposPermiso(req, res, next) {
     );
 
     return ok(res, {
-      tipos: tipos.map((r) => ({ ...r, Activo: mapActivoBit(r) })),
+      tiposPermiso: tipos.map((r) => ({ ...r, Activo: mapActivoBit(r) })),
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function obtenerCatalogosTiposIncapacidad(req, res, next) {
+  try {
+    const [tipos] = await db.query(
+      `
+      SELECT idCatalogo_Tipo_Incapacidad AS id,
+             Descripcion AS descripcion,
+             Activo
+      FROM catalogo_tipo_incapacidad
+      WHERE Activo = 1
+      ORDER BY Descripcion ASC
+      `
+    );
+
+    return ok(res, {
+      tiposIncapacidad: tipos.map((r) => ({ ...r, Activo: mapActivoBit(r) })),
     });
   } catch (err) {
     return next(err);
@@ -192,12 +213,49 @@ async function obtenerCatalogosPeriodos(req, res, next) {
   }
 }
 
+async function obtenerCatalogoEmpleadosConPersona(req, res, next) {
+  try {
+    const [rows] = await db.query(
+      `
+      SELECT
+        e.idEmpleado AS idEmpleado,
+        p.Nombre,
+        p.Apellido1,
+        p.Apellido2,
+        e.Activo AS Activo
+      FROM empleado e
+      INNER JOIN persona p ON p.idPersona = e.Persona_idPersona
+      WHERE e.Activo = 1
+        AND p.Activo = 1
+      ORDER BY p.Nombre, p.Apellido1, p.Apellido2
+      `
+    );
+
+    const empleados = rows.map((r) => ({
+      idEmpleado: Number(r.idEmpleado),
+      nombreCompleto: `${String(r.Nombre || "").trim()} ${String(r.Apellido1 || "").trim()} ${String(r.Apellido2 || "").trim()}`
+        .replace(/\s+/g, " ")
+        .trim(),
+      Nombre: r.Nombre,
+      Apellido1: r.Apellido1,
+      Apellido2: r.Apellido2,
+      Activo: mapActivoBit(r),
+    }));
+
+    return ok(res, { empleados });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   obtenerCatalogosRegistroPersonal,
   obtenerCatalogosRoles,
   obtenerCatalogosCadenciaPago,
   obtenerCatalogosTiposHoraExtra,
   obtenerCatalogosTiposPermiso,
+  obtenerCatalogosTiposIncapacidad,
   obtenerCatalogosEstadosPorModulo,
   obtenerCatalogosPeriodos,
+  obtenerCatalogoEmpleadosConPersona,
 };

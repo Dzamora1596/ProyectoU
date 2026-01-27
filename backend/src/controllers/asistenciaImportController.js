@@ -1,4 +1,4 @@
-// asistenciaImportController.js
+// backend/src/controllers/asistenciaImportController.js
 const XLSX = require("xlsx");
 const db = require("../config/db");
 
@@ -103,18 +103,16 @@ function ymdFromParts(y, m, d) {
 }
 
 function validarYMD(y, m, d) {
-  const yy = Number(y), mm = Number(m), dd = Number(d);
+  const yy = Number(y),
+    mm = Number(m),
+    dd = Number(d);
   if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return false;
   if (yy < 1900 || yy > 2100) return false;
   if (mm < 1 || mm > 12) return false;
   if (dd < 1 || dd > 31) return false;
 
   const dt = new Date(Date.UTC(yy, mm - 1, dd));
-  return (
-    dt.getUTCFullYear() === yy &&
-    dt.getUTCMonth() + 1 === mm &&
-    dt.getUTCDate() === dd
-  );
+  return dt.getUTCFullYear() === yy && dt.getUTCMonth() + 1 === mm && dt.getUTCDate() === dd;
 }
 
 function utcDowFromYYYYMMDD(ymd) {
@@ -158,7 +156,9 @@ function convertirFecha(v, diaSemanaHint = null) {
   // ISO-like "YYYY-MM-DD" (opcionalmente con hora)
   const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) {
-    const y = Number(iso[1]), m = Number(iso[2]), d = Number(iso[3]);
+    const y = Number(iso[1]),
+      m = Number(iso[2]),
+      d = Number(iso[3]);
     if (!validarYMD(y, m, d)) return null;
     return ymdFromParts(y, m, d);
   }
@@ -244,8 +244,8 @@ function encontrarIndicesHeaders(headersNorm) {
 }
 
 // ===== DB helpers =====
-async function obtenerPeriodoIdPorFecha(fechaYYYYMMDD) {
-  const [rows] = await db.query(
+async function obtenerPeriodoIdPorFecha(conn, fechaYYYYMMDD) {
+  const [rows] = await conn.query(
     `SELECT idCatalogo_Periodo
      FROM Catalogo_Periodo
      WHERE Activo = 1
@@ -301,7 +301,7 @@ function buscarCualquierCeldaConId(aoa) {
   return "";
 }
 
-async function buscarEmpleadoIdPorNombre(textoEmpleado) {
+async function buscarEmpleadoIdPorNombre(conn, textoEmpleado) {
   const limpio = String(textoEmpleado || "")
     .replace(/\(\d+\)/g, "")
     .replace(/\r/g, "")
@@ -312,7 +312,7 @@ async function buscarEmpleadoIdPorNombre(textoEmpleado) {
 
   if (!limpio) return 0;
 
-  const [rowsExact] = await db.query(
+  const [rowsExact] = await conn.query(
     `
     SELECT e.idEmpleado
     FROM Empleado e
@@ -325,7 +325,7 @@ async function buscarEmpleadoIdPorNombre(textoEmpleado) {
   );
   if (rowsExact?.[0]?.idEmpleado) return Number(rowsExact[0].idEmpleado) || 0;
 
-  const [rowsLike] = await db.query(
+  const [rowsLike] = await conn.query(
     `
     SELECT e.idEmpleado
     FROM Empleado e
@@ -342,14 +342,11 @@ async function buscarEmpleadoIdPorNombre(textoEmpleado) {
   return 0;
 }
 
-async function existeEmpleado(idEmpleado) {
+async function existeEmpleado(conn, idEmpleado) {
   const id = Number(idEmpleado) || 0;
   if (!id) return false;
 
-  const [rows] = await db.query(
-    `SELECT 1 FROM Empleado WHERE idEmpleado = ? AND Activo = 1 LIMIT 1`,
-    [id]
-  );
+  const [rows] = await conn.query(`SELECT 1 FROM Empleado WHERE idEmpleado = ? AND Activo = 1 LIMIT 1`, [id]);
   return rows.length > 0;
 }
 
@@ -372,7 +369,7 @@ function extraerRegistroFila(dataRow, idxDate, idxIn, idxOut, idxNote) {
     const ausente = entrada === "00:00:00" && salida === "00:00:00" ? 1 : 0;
 
     return {
-      Fecha: fecha,
+      Fecha: fecha, // YYYY-MM-DD
       Entrada: entrada,
       Salida: salida,
       Tardia: 0,
@@ -409,7 +406,7 @@ function extraerRegistroFila(dataRow, idxDate, idxIn, idxOut, idxNote) {
   const ausente = entrada === "00:00:00" && salida === "00:00:00" ? 1 : 0;
 
   return {
-    Fecha: fecha,
+    Fecha: fecha, // YYYY-MM-DD
     Entrada: entrada,
     Salida: salida,
     Tardia: 0,
@@ -486,6 +483,7 @@ function extraerBloquesDesdeHoja(aoa) {
 
 // ===== CONTROLLER =====
 exports.importarDesdeExcel = async (req, res) => {
+  let conn;
   try {
     const empleadoIdBody = req.body?.empleadoId ? Number(req.body.empleadoId) : 0;
     const periodoIdBody = req.body?.periodoId ? Number(req.body.periodoId) : 0;
@@ -510,12 +508,16 @@ exports.importarDesdeExcel = async (req, res) => {
       });
     }
 
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+
     const cachePeriodo = new Map();
-    async function periodoPorFecha(fecha) {
+    async function periodoPorFecha(fechaYYYYMMDD) {
       if (periodoIdBody) return periodoIdBody;
-      if (cachePeriodo.has(fecha)) return cachePeriodo.get(fecha);
-      const pid = await obtenerPeriodoIdPorFecha(fecha);
-      cachePeriodo.set(fecha, pid || 0);
+      if (cachePeriodo.has(fechaYYYYMMDD)) return cachePeriodo.get(fechaYYYYMMDD);
+
+      const pid = await obtenerPeriodoIdPorFecha(conn, fechaYYYYMMDD);
+      cachePeriodo.set(fechaYYYYMMDD, pid || 0);
       return pid || 0;
     }
 
@@ -546,9 +548,9 @@ exports.importarDesdeExcel = async (req, res) => {
       let empleadoDetectado = 0;
       if (empleadoIdExcel) empleadoDetectado = empleadoIdExcel;
       else if (empleadoIdBody && bloques.length === 1) empleadoDetectado = empleadoIdBody;
-      else empleadoDetectado = await buscarEmpleadoIdPorNombre(bloque.empleadoTexto);
+      else empleadoDetectado = await buscarEmpleadoIdPorNombre(conn, bloque.empleadoTexto);
 
-      const empleadoExiste = empleadoDetectado ? await existeEmpleado(empleadoDetectado) : false;
+      const empleadoExiste = empleadoDetectado ? await existeEmpleado(conn, empleadoDetectado) : false;
       if (empleadoDetectado && !empleadoExiste) empleadoDetectado = 0;
 
       let insB = 0;
@@ -559,7 +561,14 @@ exports.importarDesdeExcel = async (req, res) => {
         for (const a of bloque.asistencias) {
           const periodoId = await periodoPorFecha(a.Fecha);
 
-          const [existe] = await db.query(
+          // ✅ Si no hay período, no insertamos basura (evita FK/consistencia)
+          if (!periodoId) {
+            const e = new Error(`No se encontró período activo para la fecha ${a.Fecha}.`);
+            e.code = "NO_PERIODO";
+            throw e;
+          }
+
+          const [existe] = await conn.query(
             `SELECT idAsistencia
              FROM Asistencia
              WHERE Empleado_idEmpleado = ?
@@ -573,7 +582,7 @@ exports.importarDesdeExcel = async (req, res) => {
           if (existe.length > 0) {
             const idAsistencia = existe[0].idAsistencia;
 
-            await db.query(
+            await conn.query(
               `UPDATE Asistencia
                SET Entrada = ?,
                    Salida = ?,
@@ -588,13 +597,13 @@ exports.importarDesdeExcel = async (req, res) => {
             actualizados++;
             updB++;
           } else {
-            await db.query(
+            await conn.query(
               `INSERT INTO Asistencia
                (Empleado_idEmpleado, Fecha, Entrada, Salida, Tardia, Ausente, Validado, Observacion, Catalogo_Periodo_idCatalogo_Periodo, Activo)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
               [
                 empleadoDetectado,
-                a.Fecha,
+                a.Fecha, // YYYY-MM-DD (sin hora)
                 a.Entrada,
                 a.Salida,
                 a.Tardia,
@@ -615,13 +624,19 @@ exports.importarDesdeExcel = async (req, res) => {
         for (const a of bloque.asistencias) {
           const periodoId = await periodoPorFecha(a.Fecha);
 
-          await db.query(
+          if (!periodoId) {
+            const e = new Error(`No se encontró período activo para la fecha ${a.Fecha}.`);
+            e.code = "NO_PERIODO";
+            throw e;
+          }
+
+          await conn.query(
             `INSERT INTO Asistencia_NoRegistrada
              (Empleado_idEmpleado, EmpleadoTexto, Fecha, Entrada, Salida, Tardia, Ausente, Validado, Observacion, Catalogo_Periodo_idCatalogo_Periodo, Activo)
              VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
             [
               textoFinal,
-              a.Fecha,
+              a.Fecha, // YYYY-MM-DD (sin hora)
               a.Entrada,
               a.Salida,
               a.Tardia,
@@ -647,6 +662,8 @@ exports.importarDesdeExcel = async (req, res) => {
       });
     }
 
+    await conn.commit();
+
     const totalLeidas = resumenBloques.reduce((acc, x) => acc + (x.totalLeidas || 0), 0);
 
     return res.json({
@@ -660,11 +677,32 @@ exports.importarDesdeExcel = async (req, res) => {
       resumenBloques,
     });
   } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (_) {}
+    }
+
     console.error("Error importando excel:", error);
+
+    // Mensaje más claro si es período
+    if (error?.code === "NO_PERIODO") {
+      return res.status(400).json({
+        ok: false,
+        mensaje: error.message,
+      });
+    }
+
     return res.status(500).json({
       ok: false,
       mensaje: "Error importando y guardando asistencias",
       error: error.message,
     });
+  } finally {
+    if (conn) {
+      try {
+        conn.release();
+      } catch (_) {}
+    }
   }
 };

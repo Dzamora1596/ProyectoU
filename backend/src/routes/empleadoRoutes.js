@@ -9,7 +9,9 @@ const empleadoController = require("../controllers/empleadoController");
 
 function assertFn(fn, name) {
   if (typeof fn !== "function") {
-    throw new Error(`empleadoRoutes: '${name}' no es una función. Revisa exports en empleadoController.js`);
+    throw new Error(
+      `empleadoRoutes: '${name}' no es una función. Revisa exports en empleadoController.js`
+    );
   }
 }
 

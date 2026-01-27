@@ -23,6 +23,8 @@ function getUserEmpleadoId(req) {
     req?.user?.Empleado_idEmpleado ??
     req?.user?.idEmpleado ??
     req?.user?.EmpleadoId ??
+    req?.user?.empleado?.idEmpleado ??
+    req?.user?.empleado?.IdEmpleado ??
     req?.usuario?.empleadoId ??
     req?.usuario?.Empleado_idEmpleado ??
     req?.usuario?.idEmpleado ??
@@ -31,6 +33,97 @@ function getUserEmpleadoId(req) {
 
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function getUserId(req) {
+  const v =
+    req?.user?.idUsuario ??
+    req?.user?.IdUsuario ??
+    req?.user?.usuarioId ??
+    req?.user?.userId ??
+    req?.user?.id ??
+    req?.usuario?.idUsuario ??
+    req?.usuario?.IdUsuario ??
+    req?.usuario?.usuarioId ??
+    req?.usuario?.userId ??
+    req?.usuario?.id ??
+    null;
+
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function getUserEmail(req) {
+  const v =
+    req?.user?.correo ??
+    req?.user?.Correo ??
+    req?.user?.email ??
+    req?.user?.Email ??
+    req?.user?.username ??
+    req?.user?.Usuario ??
+    req?.usuario?.correo ??
+    req?.usuario?.Correo ??
+    req?.usuario?.email ??
+    req?.usuario?.Email ??
+    req?.usuario?.username ??
+    req?.usuario?.Usuario ??
+    null;
+
+  const s = String(v || "").trim();
+  return s ? s : null;
+}
+
+async function tryFirstEmpleadoIdFrom(sqls, params) {
+  for (const sql of sqls) {
+    try {
+      const [rows] = await db.query(sql, params);
+      const r = rows?.[0];
+      if (!r) continue;
+      const n = Number(r.idEmpleado ?? r.Empleado_idEmpleado ?? r.empleadoId ?? r.id ?? 0);
+      if (Number.isFinite(n) && n > 0) return n;
+    } catch {
+      // ignorar (puede no existir la tabla/columna en este esquema)
+    }
+  }
+  return null;
+}
+
+async function inferEmpleadoIdFromUser(req) {
+  const direct = getUserEmpleadoId(req);
+  if (direct) return direct;
+
+  const userId = getUserId(req);
+  if (userId) {
+    const byUserId = await tryFirstEmpleadoIdFrom(
+      [
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM Usuario WHERE idUsuario = ? LIMIT 1",
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM Usuarios WHERE idUsuario = ? LIMIT 1",
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM usuario WHERE idUsuario = ? LIMIT 1",
+        "SELECT idEmpleado AS idEmpleado FROM Empleado WHERE Usuario_idUsuario = ? LIMIT 1",
+        "SELECT idEmpleado AS idEmpleado FROM Empleado WHERE usuarioId = ? LIMIT 1",
+      ],
+      [userId]
+    );
+    if (byUserId) return byUserId;
+  }
+
+  const email = getUserEmail(req);
+  if (email) {
+    const byEmail = await tryFirstEmpleadoIdFrom(
+      [
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM Usuario WHERE Correo = ? LIMIT 1",
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM Usuario WHERE email = ? LIMIT 1",
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM Usuarios WHERE Correo = ? LIMIT 1",
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM Usuarios WHERE email = ? LIMIT 1",
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM usuario WHERE Correo = ? LIMIT 1",
+        "SELECT Empleado_idEmpleado AS idEmpleado FROM usuario WHERE email = ? LIMIT 1",
+      ],
+      [email]
+    );
+    if (byEmail) return byEmail;
+  }
+
+  return null;
 }
 
 async function listarEmpleados(req, res, next) {
@@ -57,6 +150,11 @@ async function listarEmpleados(req, res, next) {
         activo: bitTo01(r.Activo),
         nombreCompleto,
         nombre: nombreCompleto,
+        persona: {
+          Nombre: String(r.Nombre || ""),
+          Apellido1: String(r.Apellido1 || ""),
+          Apellido2: String(r.Apellido2 || ""),
+        },
       };
     });
 
@@ -68,7 +166,7 @@ async function listarEmpleados(req, res, next) {
 
 async function obtenerMiEmpleado(req, res, next) {
   try {
-    const empleadoId = getUserEmpleadoId(req);
+    const empleadoId = await inferEmpleadoIdFromUser(req);
     if (!empleadoId) {
       return res.status(400).json({ ok: false, mensaje: "El usuario no tiene empleado asignado" });
     }
@@ -105,6 +203,11 @@ async function obtenerMiEmpleado(req, res, next) {
         activo: 1,
         nombreCompleto,
         nombre: nombreCompleto,
+        persona: {
+          Nombre: String(r.Nombre || ""),
+          Apellido1: String(r.Apellido1 || ""),
+          Apellido2: String(r.Apellido2 || ""),
+        },
       },
     });
   } catch (error) {
@@ -143,7 +246,9 @@ async function actualizarEmpleado(req, res, next) {
     }
 
     const activo =
-      req.body?.Activo === undefined && req.body?.activo === undefined ? 1 : bitTo01(req.body?.Activo ?? req.body?.activo);
+      req.body?.Activo === undefined && req.body?.activo === undefined
+        ? 1
+        : bitTo01(req.body?.Activo ?? req.body?.activo);
 
     const [upd] = await db.query("UPDATE Empleado SET Activo = ? WHERE idEmpleado = ?", [activo, idEmpleado]);
 

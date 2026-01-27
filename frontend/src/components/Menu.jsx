@@ -3,6 +3,8 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { NavLink, useLocation } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Button, Offcanvas } from "react-bootstrap";
+import { setAuth as setAuthAsistencias } from "../services/asistenciaService";
+import { setAuth as setAuthIncapacidades } from "../services/incapacidadesService";
 
 function normalizarRol(user) {
   return String(user?.rolNombre || user?.rol || user?.nombreRol || "")
@@ -14,8 +16,10 @@ function puedeAcceder(user) {
   const rol = normalizarRol(user);
   const esAdmin = rol === "admin";
   const esJefatura = rol === "jefatura";
-  const esPlanilla = rol === "personal de planilla";
+  const esPlanilla = rol.includes("planilla");
   const esColaborador = rol === "colaborador";
+
+  const puedeVerIncapacidades = esAdmin || esJefatura || esPlanilla || esColaborador;
 
   return {
     rolTexto: user?.rolNombre || user?.rol || user?.nombreRol || "",
@@ -38,6 +42,8 @@ function puedeAcceder(user) {
     puedeVerCatalogosHorario: esAdmin || esJefatura,
     puedeSolicitarVacaciones: esColaborador || esPlanilla,
     puedeVerVacaciones: esAdmin || esJefatura || esPlanilla || esColaborador,
+    puedeVerRoles: esAdmin,
+    puedeVerIncapacidades,
   };
 }
 
@@ -153,6 +159,12 @@ export default function Menu({ user, onLogout }) {
   const [showMobile, setShowMobile] = useState(false);
   const location = useLocation();
 
+  const handleLogout = () => {
+    setAuthAsistencias(null);
+    setAuthIncapacidades(null);
+    if (typeof onLogout === "function") onLogout();
+  };
+
   const items = [];
   items.push({ to: "/inicio", label: "Inicio", icon: "bi bi-house-door" });
 
@@ -162,6 +174,10 @@ export default function Menu({ user, onLogout }) {
 
   if (perms.puedeRegistrarUsuarios) {
     items.push({ to: "/usuarios", label: "Usuarios", icon: "bi bi-shield-lock" });
+  }
+
+  if (perms.puedeVerRoles) {
+    items.push({ to: "/roles", label: "Roles", icon: "bi bi-person-gear" });
   }
 
   if (perms.puedeRegistrarAsistencias || perms.puedeValidarAsistencias) {
@@ -181,6 +197,7 @@ export default function Menu({ user, onLogout }) {
     }
   }
 
+  // Mostrar "Planilla" a Admin/Jefatura; y a Planilla/Colaborador solo el acceso a Incapacidades
   if (perms.puedeCalcularPagos) {
     items.push({ type: "divider", key: "div-planilla", label: "Planilla" });
     items.push({ to: "/planilla/calcular-salarios", label: "Calcular salarios", icon: "bi bi-cash-coin" });
@@ -190,6 +207,9 @@ export default function Menu({ user, onLogout }) {
     items.push({ to: "/planilla/aguinaldo", label: "Aguinaldo", icon: "bi bi-gift" });
     items.push({ to: "/planilla/incapacidades", label: "Incapacidades", icon: "bi bi-bandaid" });
     items.push({ to: "/planilla/liquidacion", label: "Liquidación", icon: "bi bi-file-earmark-text" });
+  } else if (perms.puedeVerIncapacidades) {
+    items.push({ type: "divider", key: "div-planilla", label: "Planilla" });
+    items.push({ to: "/planilla/incapacidades", label: "Incapacidades", icon: "bi bi-bandaid" });
   }
 
   if (perms.esJefatura || perms.esAdmin) {
@@ -242,7 +262,7 @@ export default function Menu({ user, onLogout }) {
           items={items}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
-          onLogout={onLogout}
+          onLogout={handleLogout}
           pathname={location.pathname}
         />
       </aside>
@@ -257,7 +277,7 @@ export default function Menu({ user, onLogout }) {
             perms={perms}
             items={items}
             collapsed={false}
-            onLogout={onLogout}
+            onLogout={handleLogout}
             onNavigate={() => setShowMobile(false)}
             pathname={location.pathname}
           />

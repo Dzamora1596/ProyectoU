@@ -1,7 +1,11 @@
 // middlewares/requireRole.js
 module.exports = (rolesPermitidos = []) => {
   const normalizeRolNombre = (raw) => {
-    const s = String(raw || "").trim();
+    const s = String(raw || "")
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
     if (!s) return "";
 
     const key = s
@@ -13,11 +17,7 @@ module.exports = (rolesPermitidos = []) => {
     if (key === "admin") return "Admin";
     if (key === "jefatura") return "Jefatura";
 
-    if (
-      key === "colaborador" ||
-      key === "empleado" ||
-      key === "employee"
-    ) {
+    if (key === "colaborador" || key === "empleado" || key === "employee") {
       return "Colaborador";
     }
 

@@ -12,6 +12,7 @@ import HorarioEmpleado from "./pages/horarios/HorarioEmpleado";
 import CatalogosHorario from "./pages/horarios/CatalogosHorario";
 import Permisos from "./pages/permisos/Permisos";
 import Vacaciones from "./pages/vacaciones/Vacaciones";
+import Incapacidades from "./pages/planilla/Incapacidades";
 
 function Placeholder({ titulo }) {
   return (
@@ -47,7 +48,7 @@ export default function App() {
           <Route path="/planilla/deducciones" element={<Placeholder titulo="Deducciones" />} />
           <Route path="/planilla/adelantos" element={<Placeholder titulo="Adelantos" />} />
           <Route path="/planilla/aguinaldo" element={<Placeholder titulo="Aguinaldo" />} />
-          <Route path="/planilla/incapacidades" element={<Placeholder titulo="Incapacidades" />} />
+          <Route path="/planilla/incapacidades" element={<Incapacidades />} />
           <Route path="/planilla/liquidacion" element={<Placeholder titulo="Liquidación" />} />
 
           <Route path="/permisos" element={<Permisos />} />

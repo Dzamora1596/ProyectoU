@@ -21,18 +21,10 @@ function pad2(n) {
   return String(Number(n || 0)).padStart(2, "0");
 }
 
-/**
- * Convierte cualquier cosa razonable a 'YYYY-MM-DD' sin problemas de zona horaria.
- * Acepta:
- *  - Date
- *  - 'YYYY-MM-DD'
- *  - 'YYYY/MM/DD'
- *  - 'DD/MM/YYYY'
- */
+
 function ymd(v) {
   if (!v) return "";
 
-  // Date -> YYYY-MM-DD usando valores locales (no UTC)
   if (v instanceof Date) {
     if (isNaN(v.getTime())) return "";
     return `${v.getFullYear()}-${pad2(v.getMonth() + 1)}-${pad2(v.getDate())}`;
@@ -41,32 +33,25 @@ function ymd(v) {
   const s = String(v).trim();
   if (!s) return "";
 
-  // Ya viene YYYY-MM-DD (como input type="date")
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
 
-  // YYYY/MM/DD
   let m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
   if (m) {
     const [, y, mo, d] = m;
     return `${y}-${mo}-${d}`;
   }
 
-  // DD/MM/YYYY
   m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (m) {
     const [, dd, mm, yyyy] = m;
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  // Último recurso: intentar parseo, pero evitando desfase (no recomendado para YYYY-MM-DD)
   const dt = new Date(s);
   if (isNaN(dt.getTime())) return "";
   return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
 }
 
-/**
- * Parsea estrictamente 'YYYY-MM-DD' a Date (local) sin usar new Date('YYYY-MM-DD') por TZ.
- */
 function parseYmd(s) {
   const str = String(s || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;

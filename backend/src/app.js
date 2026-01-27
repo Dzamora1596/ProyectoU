@@ -138,12 +138,6 @@ app.options(/.*/, cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-/**
- * ✅ SERVIR ARCHIVOS SUBIDOS (uploads/incapacidades, etc.)
- * IMPORTANTE:
- * - Esto expone /uploads/** públicamente.
- * - Si luego quiere protegerlos por JWT, hacemos endpoint privado en lugar de static.
- */
 const uploadsPath = path.resolve(process.cwd(), "uploads");
 app.use("/uploads", express.static(uploadsPath));
 

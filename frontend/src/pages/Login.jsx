@@ -1,8 +1,9 @@
-//Login.jsx
+// frontend/src/pages/Login.jsx
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Container, Card, Form, Button, Alert, Spinner } from "react-bootstrap";
 import cliente from "../api/axios";
+
 
 export default function Login() {
   const navigate = useNavigate();
@@ -45,6 +46,8 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
+    
+
       const destino = location.state?.from || "/inicio";
       navigate(destino, { replace: true });
     } catch (err) {
@@ -63,41 +66,43 @@ export default function Login() {
   };
 
   return (
-    <Container 
-      fluid 
-      className="d-flex justify-content-center align-items-center" 
-      style={{ minHeight: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#96969600" }}
+    <Container
+      fluid
+      className="d-flex justify-content-center align-items-center"
+      style={{ minHeight: "100vh", position: "relative", overflow: "hidden", padding: 0 }}
     >
-      {/* CAPA DE IMAGEN DE FONDO */}
-      <div style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 0 // Se mantiene detrás del Card
-      }}>
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 0,
+        }}
+      >
         <img
           src="/Login.png"
           alt="Inicio"
           style={{
             width: "100%",
-            maxWidth: "10000px",
-            maxHeight: "85vh",
-            objectFit: "contain",
-            maskImage: "radial-gradient(circle, black 100%, transparent 95%)",
-            WebkitMaskImage: "radial-gradient(circle, black 100%, transparent 100%)",
-            border: "none",
-            opacity: 0.6 // Opcional: para que no opaque el formulario
+            height: "100%",
+            objectFit: "cover", 
+            opacity: 0.8,
           }}
         />
       </div>
 
-      {/* TARJETA DE LOGIN */}
-      <Card style={{ width: "420px", zIndex: 1 }} className="shadow">
+      <Card 
+        style={{ 
+          width: "420px", 
+          zIndex: 1, 
+          backgroundColor: "rgba(255, 255, 255, 0.85)", 
+          backdropFilter: "blur(5px)", 
+          border: "none"
+        }} 
+        className="shadow"
+      >
         <Card.Body className="p-4">
           <h3 className="mb-3 text-center">Iniciar sesión</h3>
 
@@ -140,7 +145,7 @@ export default function Login() {
           </Form>
 
           <div className="text-muted mt-3" style={{ fontSize: 13 }}>
-            Backend esperado: <b>http://localhost:4000</b>
+            Sistema de Gestión de Planillas - Proyecto de Graduación
           </div>
         </Card.Body>
       </Card>

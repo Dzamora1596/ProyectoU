@@ -3,15 +3,37 @@ const jwt = require("jsonwebtoken");
 const db = require("../config/db");
 
 function normalizeRolNombre(raw) {
-  const s = String(raw || "").trim();
+  const s = String(raw || "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
   if (!s) return "";
 
-  const key = s.toLowerCase().replace(/\s+/g, " ").trim();
+  const key = s
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   if (key === "admin") return "Admin";
   if (key === "jefatura") return "Jefatura";
-  if (key === "colaborador") return "Colaborador";
-  if (key === "personal de planilla") return "Personal de Planilla";
+
+  if (key === "colaborador" || key === "empleado" || key === "employee") {
+    return "Colaborador";
+  }
+
+  if (
+    key === "personal de planilla" ||
+    key === "personal planilla" ||
+    key === "planilla" ||
+    key === "personal_de_planilla" ||
+    key === "personalplanilla" ||
+    key === "payroll" ||
+    key === "payroll staff"
+  ) {
+    return "Personal de Planilla";
+  }
 
   return key
     .split(" ")
@@ -20,7 +42,20 @@ function normalizeRolNombre(raw) {
 }
 
 async function cargarEmpleadoIdSiFalta(user) {
-  if (!user || !user.idUsuario) return;
+  if (!user) return;
+
+  const idUsuario =
+    user.idUsuario ??
+    user.id ??
+    user.userId ??
+    user.usuarioId ??
+    user.IdUsuario ??
+    user.Usuario_idUsuario ??
+    null;
+
+  if (!idUsuario) return;
+
+  user.idUsuario = idUsuario;
 
   const yaTraeEmpleado =
     user.Empleado_idEmpleado ??
@@ -39,7 +74,7 @@ async function cargarEmpleadoIdSiFalta(user) {
 
   for (const q of tryQueries) {
     try {
-      const res = await db.query(q.sql, [user.idUsuario]);
+      const res = await db.query(q.sql, [idUsuario]);
       const rows = Array.isArray(res) && Array.isArray(res[0]) ? res[0] : res?.rows || res;
       const empId = Number(q.map(rows?.[0]) || 0);
 
@@ -50,9 +85,7 @@ async function cargarEmpleadoIdSiFalta(user) {
         user.EmpleadoId = empId;
         return;
       }
-    } catch {
-      
-    }
+    } catch (_) {}
   }
 }
 
@@ -116,8 +149,20 @@ module.exports = async (req, res, next) => {
 
     await cargarEmpleadoIdSiFalta(req.user);
 
+    const empleadoId =
+      req.user.Empleado_idEmpleado ??
+      req.user.empleadoId ??
+      req.user.idEmpleado ??
+      req.user.EmpleadoId ??
+      null;
+
+    req.idUsuario = req.user.idUsuario ?? null;
+    req.rol = rolNombre || null;
+    req.idEmpleado = empleadoId ? Number(empleadoId) : null;
+    req.empleadoId = req.idEmpleado;
+
     return next();
-  } catch (error) {
+  } catch (_error) {
     return res.status(403).json({ ok: false, mensaje: "Token inválido o expirado" });
   }
 };
