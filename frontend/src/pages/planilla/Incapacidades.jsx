@@ -62,19 +62,20 @@ function estadoBadge(estado) {
   return <Badge bg="secondary">{e || "—"}</Badge>;
 }
 
+// ✅ AJUSTE: NO hardcodear localhost, usar el mismo origen del api
 function buildFileUrl(ruta) {
   if (!ruta) return null;
   const r = String(ruta).replace(/^\/+/, "");
-  return `http://localhost:4000/${r}`;
+
+  // api.defaults.baseURL típicamente es ".../api"
+  const base = String(api?.defaults?.baseURL || "")
+    .replace(/\/+$/, "")
+    .replace(/\/api$/, "");
+
+  const origin = base || window.location.origin;
+  return `${origin}/${r}`;
 }
 
-/**
- * ✅ Convierte a dd/mm/yyyy (SIN HORA)
- * Soporta:
- * - "dd/mm/yyyy"
- * - "yyyy-mm-dd"
- * - strings parseables por Date
- */
 function toDMYOnly(anyDate) {
   const s = String(anyDate || "").trim();
   if (!s) return "";
@@ -97,16 +98,10 @@ function toDMYOnly(anyDate) {
   return "";
 }
 
-/**
- * ✅ Para mostrar fechas en UI, siempre dd/mm/yyyy
- */
 function fmtDate(s) {
   return toDMYOnly(s) || "";
 }
 
-/**
- * ✅ Para <input type="date"> necesitamos yyyy-mm-dd
- */
 function toDateLocalToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -233,6 +228,19 @@ function getPeriodoIdFromAnyDate(anyDateValue, periodosArr) {
   return "";
 }
 
+function daysBetweenInclusive(a, b) {
+  const ta = parseAnyDateToMs(a);
+  const tb = parseAnyDateToMs(b);
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+  const d1 = new Date(ta);
+  const d2 = new Date(tb);
+  d1.setHours(0, 0, 0, 0);
+  d2.setHours(0, 0, 0, 0);
+  const diff = d2.getTime() - d1.getTime();
+  if (diff < 0) return 0;
+  return Math.floor(diff / (24 * 60 * 60 * 1000)) + 1;
+}
+
 export default function Incapacidades() {
   const user = useMemo(() => {
     try {
@@ -275,23 +283,27 @@ export default function Incapacidades() {
     Tipo_Incapacidad_idTipo_Incapacidad: "",
     Catalogo_Periodo_idCatalogo_Periodo: "",
     Descripcion: "",
-    // ✅ ISO yyyy-mm-dd (input date)
     Fecha_Inicio: "",
     Fecha_Fin: "",
   });
   const [creando, setCreando] = useState(false);
 
-  // ✅ Validar con nota
   const [showValidar, setShowValidar] = useState(false);
   const [notaValidacion, setNotaValidacion] = useState("");
 
-  // ✅ Rechazar con nota
   const [showRechazar, setShowRechazar] = useState(false);
-  const [motivo, setMotivo] = useState(""); // (se mantiene el nombre para no “romper” nada; ahora funciona como Nota/Observación)
+  const [motivo, setMotivo] = useState("");
   const [procesando, setProcesando] = useState(false);
 
   const [archivo, setArchivo] = useState(null);
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
+
+  const estadoNorm = useMemo(
+    () => String(detalle?.Estado || "").toLowerCase(),
+    [detalle?.Estado]
+  );
+
+  const esPendienteDetalle = estadoNorm.includes("pendiente");
 
   const cargarLista = useCallback(async () => {
     setError("");
@@ -470,10 +482,9 @@ export default function Incapacidades() {
     setMensaje("");
     setCreando(true);
     try {
-      const inicioLocal = String(formCrear.Fecha_Inicio || "").trim(); // yyyy-mm-dd
-      const finLocal = String(formCrear.Fecha_Fin || "").trim(); // yyyy-mm-dd
+      const inicioLocal = String(formCrear.Fecha_Inicio || "").trim();
+      const finLocal = String(formCrear.Fecha_Fin || "").trim();
 
-      // ✅ enviar al backend solo dd/mm/yyyy
       const inicioDMY = toDMYOnly(inicioLocal);
       const finDMY = toDMYOnly(finLocal);
 
@@ -485,8 +496,9 @@ export default function Incapacidades() {
 
       const periodoAuto = getPeriodoIdFromAnyDate(inicioLocal, periodos);
 
+      // ✅ self-only NO manda Empleado_idEmpleado (backend lo resuelve)
       const payload = {
-        Empleado_idEmpleado: empleadoIdFinal || undefined,
+        ...(esSelfOnly ? {} : { Empleado_idEmpleado: empleadoIdFinal || undefined }),
         Tipo_Incapacidad_idTipo_Incapacidad: Number(
           formCrear.Tipo_Incapacidad_idTipo_Incapacidad || 0
         ),
@@ -504,7 +516,7 @@ export default function Incapacidades() {
       if (!payload.Fecha_Inicio || !payload.Fecha_Fin)
         throw new Error("Debe seleccionar Fecha inicio y Fecha fin.");
 
-      if (esSelfOnly && !payload.Empleado_idEmpleado) {
+      if (esSelfOnly && !empleadoIdFinal) {
         throw new Error("No se pudo determinar su empleado. Verifique /empleados/me.");
       }
 
@@ -550,13 +562,6 @@ export default function Incapacidades() {
     }
   };
 
-  /**
-   * ✅ IMPORTANTE (ajuste seguro):
-   * El backend ya aplica la incapacidad a Asistencia al VALIDAR (aprobarIncapacidad llama aplicarIncapacidadEnAsistencia).
-   * Para evitar doble prefijo y dobles updates, aquí NO repetimos esa lógica en frontend.
-   */
-
-  // ✅ Confirmar validar (con nota)
   const onConfirmarValidar = async () => {
     if (!detalle?.idIncapacidad) return;
     setError("");
@@ -605,12 +610,23 @@ export default function Incapacidades() {
     [detalle]
   );
 
-  // ✅ Permiso de subir/seleccionar archivo
+  const diasIncapacidad = useMemo(() => {
+    if (!detalle?.Fecha_Inicio || !detalle?.Fecha_Fin) return 0;
+    return daysBetweenInclusive(detalle.Fecha_Inicio, detalle.Fecha_Fin);
+  }, [detalle?.Fecha_Inicio, detalle?.Fecha_Fin]);
+
   const puedeSubirArchivo = useMemo(() => {
-    if (!puedeCrear) return false; // colaborador/planilla/admin/jefatura
+    if (!puedeCrear) return false;
     if (!detalle?.idIncapacidad) return false;
     return true;
   }, [puedeCrear, detalle?.idIncapacidad]);
+
+  const puedeAccionarEstado = useMemo(() => {
+    if (!esValidador) return false;
+    if (!detalle?.idIncapacidad) return false;
+    if (procesando) return false;
+    return esPendienteDetalle;
+  }, [esValidador, detalle?.idIncapacidad, procesando, esPendienteDetalle]);
 
   return (
     <Container fluid className="p-3">
@@ -618,7 +634,12 @@ export default function Incapacidades() {
         <div>
           <h4 className="mb-1">Incapacidades</h4>
           <div className="text-muted" style={{ fontSize: 13 }}>
-            Backend: <b>http://localhost:4000</b> · Adjuntos: <b>/uploads</b>
+            Backend:{" "}
+            <b>
+              {String(api?.defaults?.baseURL || "").replace(/\/api$/, "") ||
+                window.location.origin}
+            </b>{" "}
+            · Adjuntos: <b>/uploads</b>
           </div>
         </div>
 
@@ -739,7 +760,7 @@ export default function Incapacidades() {
                     <Button
                       variant="success"
                       onClick={() => setShowValidar(true)}
-                      disabled={procesando || !detalle?.idIncapacidad}
+                      disabled={!puedeAccionarEstado}
                     >
                       <i className="bi bi-check2-circle me-1" />
                       Validar
@@ -747,7 +768,7 @@ export default function Incapacidades() {
                     <Button
                       variant="danger"
                       onClick={() => setShowRechazar(true)}
-                      disabled={procesando || !detalle?.idIncapacidad}
+                      disabled={!puedeAccionarEstado}
                     >
                       <i className="bi bi-x-circle me-1" />
                       Rechazar
@@ -796,9 +817,22 @@ export default function Incapacidades() {
                     </Col>
                     <Col md={6}>
                       <div className="text-muted" style={{ fontSize: 12 }}>
+                        Días
+                      </div>
+                      <div>{diasIncapacidad ? `${diasIncapacidad}` : "—"}</div>
+                    </Col>
+
+                    <Col md={6}>
+                      <div className="text-muted" style={{ fontSize: 12 }}>
                         Descripción
                       </div>
                       <div>{detalle?.Descripcion || "—"}</div>
+                    </Col>
+                    <Col md={6}>
+                      <div className="text-muted" style={{ fontSize: 12 }}>
+                        Estado
+                      </div>
+                      <div>{estadoBadge(detalle?.Estado)}</div>
                     </Col>
 
                     <Col md={6}>
@@ -929,7 +963,6 @@ export default function Incapacidades() {
         </Col>
       </Row>
 
-      {/* ✅ MODAL: Crear */}
       <Modal show={showCrear} onHide={() => setShowCrear(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Nueva incapacidad</Modal.Title>
@@ -1079,7 +1112,7 @@ export default function Incapacidades() {
                     type="date"
                     value={formCrear.Fecha_Inicio}
                     onChange={(e) => {
-                      const v = e.target.value; // yyyy-mm-dd
+                      const v = e.target.value;
                       setFormCrear((s) => ({
                         ...s,
                         Fecha_Inicio: v,
@@ -1122,7 +1155,6 @@ export default function Incapacidades() {
         </Modal.Footer>
       </Modal>
 
-      {/* ✅ MODAL: Validar con nota */}
       <Modal
         show={showValidar}
         onHide={() => {
@@ -1174,7 +1206,6 @@ export default function Incapacidades() {
         </Modal.Footer>
       </Modal>
 
-      {/* ✅ MODAL: Rechazar con nota */}
       <Modal
         show={showRechazar}
         onHide={() => {

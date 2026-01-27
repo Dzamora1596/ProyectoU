@@ -4,7 +4,6 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Button, Offcanvas } from "react-bootstrap";
 import { setAuth as setAuthAsistencias } from "../services/asistenciaService";
-import { setAuth as setAuthIncapacidades } from "../services/incapacidadesService";
 
 function normalizarRol(user) {
   return String(user?.rolNombre || user?.rol || user?.nombreRol || "")
@@ -36,8 +35,11 @@ function puedeAcceder(user) {
     puedeVerMantenimientos: esAdmin,
     puedeVerConsultas: esAdmin || esJefatura || esPlanilla,
     puedeVerReportes: esAdmin || esJefatura || esPlanilla,
-    puedeSolicitar: esColaborador,
-    puedeVerSoloMiInfo: esColaborador,
+
+    // ✅ AJUSTE: Planilla también puede solicitar (igual que Colaborador)
+    puedeSolicitar: esColaborador || esPlanilla,
+    puedeVerSoloMiInfo: esColaborador || esPlanilla,
+
     puedeVerHorarioEmpleado: esAdmin || esJefatura || esPlanilla,
     puedeVerCatalogosHorario: esAdmin || esJefatura,
     puedeSolicitarVacaciones: esColaborador || esPlanilla,
@@ -161,7 +163,6 @@ export default function Menu({ user, onLogout }) {
 
   const handleLogout = () => {
     setAuthAsistencias(null);
-    setAuthIncapacidades(null);
     if (typeof onLogout === "function") onLogout();
   };
 
@@ -224,6 +225,7 @@ export default function Menu({ user, onLogout }) {
     items.push({ to: "/vacaciones", label: "Vacaciones", icon: "bi bi-sun" });
   }
 
+  // ✅ Ahora Planilla también entra aquí porque perms.puedeSolicitar incluye esPlanilla
   if (perms.puedeSolicitar) {
     items.push({ type: "divider", key: "div-solic", label: "Mis solicitudes" });
     items.push({ to: "/solicitudes/permisos", label: "Solicitar permiso", icon: "bi bi-file-earmark-medical" });

@@ -43,12 +43,24 @@ function getEmpleadoIdFromAuth(req) {
 }
 
 function isColaborador(role) {
-  return String(role || "").toLowerCase() === "colaborador";
+  return String(role || "").toLowerCase().trim() === "colaborador";
+}
+
+// ✅ NUEVO: Planilla
+function isPlanilla(role) {
+  const r = String(role || "").toLowerCase().trim();
+  return r === "personal de planilla" || r.includes("planilla");
+}
+
+// ✅ NUEVO: roles "self-only" (mismo comportamiento que colaborador)
+function isSelfOnlyRole(role) {
+  return isColaborador(role) || isPlanilla(role);
 }
 
 function canSeeWarnings(role) {
-  const r = String(role || "").toLowerCase();
-  return r === "admin" || r === "jefatura" || r === "colaborador";
+  const r = String(role || "").toLowerCase().trim();
+  // ✅ incluir planilla (igual que colaborador)
+  return r === "admin" || r === "jefatura" || r === "colaborador" || r === "personal de planilla" || r.includes("planilla");
 }
 
 function isValidDateTime(value) {
@@ -95,7 +107,8 @@ function handleControllerError(res, error, defaultMessage) {
 async function listar(req, res) {
   try {
     const role = getUserRole(req);
-    const empleadoScope = isColaborador(role) ? getEmpleadoIdFromAuth(req) : null;
+    // ✅ Planilla = Colaborador (scope)
+    const empleadoScope = isSelfOnlyRole(role) ? getEmpleadoIdFromAuth(req) : null;
 
     const filters = {
       empleadoId: req.query.empleadoId ? Number(req.query.empleadoId) : undefined,
@@ -130,7 +143,8 @@ async function listar(req, res) {
 async function obtenerPorId(req, res) {
   try {
     const role = getUserRole(req);
-    const empleadoScope = isColaborador(role) ? getEmpleadoIdFromAuth(req) : null;
+    // ✅ Planilla = Colaborador (scope)
+    const empleadoScope = isSelfOnlyRole(role) ? getEmpleadoIdFromAuth(req) : null;
 
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido" });
@@ -154,9 +168,10 @@ async function crear(req, res) {
     if (!usuarioId) return res.status(401).json({ message: "Usuario no autenticado" });
 
     const role = getUserRole(req);
-    const empleadoScope = isColaborador(role) ? getEmpleadoIdFromAuth(req) : null;
+    // ✅ Planilla = Colaborador (scope)
+    const empleadoScope = isSelfOnlyRole(role) ? getEmpleadoIdFromAuth(req) : null;
 
-    if (isColaborador(role) && !empleadoScope) {
+    if (isSelfOnlyRole(role) && !empleadoScope) {
       return res.status(403).json({ message: "No se pudo determinar el empleado del usuario" });
     }
 
@@ -170,7 +185,8 @@ async function crear(req, res) {
       Tipo_Permiso_idTipo_Permiso,
     } = req.body || {};
 
-    const empleadoIdEff = isColaborador(role) ? Number(empleadoScope) : Number(Empleado_idEmpleado || 0);
+    // ✅ Planilla = Colaborador (empleado fijo desde auth)
+    const empleadoIdEff = isSelfOnlyRole(role) ? Number(empleadoScope) : Number(Empleado_idEmpleado || 0);
 
     if (!empleadoIdEff || !Tipo_Permiso_idTipo_Permiso || !Descripcion || !Fecha_Inicio || !Fecha_Fin) {
       return res.status(400).json({ message: "Faltan campos requeridos" });
@@ -247,7 +263,8 @@ async function actualizar(req, res) {
     if (!usuarioId) return res.status(401).json({ message: "Usuario no autenticado" });
 
     const role = getUserRole(req);
-    const empleadoScope = isColaborador(role) ? getEmpleadoIdFromAuth(req) : null;
+    // ✅ Planilla = Colaborador (scope) — aunque por rutas no deberían entrar si no tienen rol
+    const empleadoScope = isSelfOnlyRole(role) ? getEmpleadoIdFromAuth(req) : null;
 
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido" });
@@ -359,7 +376,8 @@ async function desactivar(req, res) {
     if (!usuarioId) return res.status(401).json({ message: "Usuario no autenticado" });
 
     const role = getUserRole(req);
-    const empleadoScope = isColaborador(role) ? getEmpleadoIdFromAuth(req) : null;
+    // ✅ Planilla = Colaborador (scope) — aunque por rutas no deberían entrar si no tienen rol
+    const empleadoScope = isSelfOnlyRole(role) ? getEmpleadoIdFromAuth(req) : null;
 
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido" });

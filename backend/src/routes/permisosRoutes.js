@@ -9,12 +9,26 @@ const requireRole = require("../middlewares/requireRole");
 
 router.use(autenticarMiddleware);
 
-router.get("/", requireRole(["Admin", "Jefatura", "Colaborador"]), permisosController.listar);
+// ✅ Planilla = Colaborador (listar / ver / crear)
+router.get(
+  "/",
+  requireRole(["Admin", "Jefatura", "Colaborador", "Personal de Planilla"]),
+  permisosController.listar
+);
 
-router.get("/:id", requireRole(["Admin", "Jefatura", "Colaborador"]), permisosController.obtenerPorId);
+router.get(
+  "/:id",
+  requireRole(["Admin", "Jefatura", "Colaborador", "Personal de Planilla"]),
+  permisosController.obtenerPorId
+);
 
-router.post("/", requireRole(["Admin", "Jefatura", "Colaborador"]), permisosController.crear);
+router.post(
+  "/",
+  requireRole(["Admin", "Jefatura", "Colaborador", "Personal de Planilla"]),
+  permisosController.crear
+);
 
+// 🔒 Gestión solo Admin/Jefatura
 router.put("/:id", requireRole(["Admin", "Jefatura"]), permisosController.actualizar);
 
 router.put("/:id/aprobar", requireRole(["Admin", "Jefatura"]), permisosController.aprobar);

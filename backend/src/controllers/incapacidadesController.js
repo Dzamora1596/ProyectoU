@@ -12,14 +12,61 @@ try {
   asistenciaService = null;
 }
 
+function toNumOrNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function getAuthContext(req) {
   const u = req.user || req.usuario || req.auth || req.sessionUser || {};
 
-  const idUsuario = u.idUsuario ?? u.usuarioId ?? u.id ?? req.idUsuario ?? null;
-  const rol = u.rol ?? u.role ?? u.NombreRol ?? u.descripcionRol ?? req.rol ?? null;
-  const empleadoId = u.Empleado_idEmpleado ?? u.empleadoId ?? u.idEmpleado ?? req.idEmpleado ?? null;
+  // ✅ idUsuario (más variantes)
+  const idUsuarioRaw =
+    u.idUsuario ??
+    u.IdUsuario ??
+    u.usuarioId ??
+    u.UsuarioId ??
+    u.userId ??
+    u.id ??
+    req.idUsuario ??
+    req.usuarioId ??
+    null;
 
-  return { idUsuario, rol, empleadoId, raw: u };
+  // ✅ rol (más variantes: rolNombre incluido)
+  const rolRaw =
+    u.rolNombre ??
+    u.RolNombre ??
+    u.rol ??
+    u.role ??
+    u.Rol ??
+    u.NombreRol ??
+    u.nombreRol ??
+    u.descripcionRol ??
+    req.rol ??
+    req.role ??
+    req.rolNombre ??
+    null;
+
+  // ✅ empleadoId (más variantes)
+  const empleadoIdRaw =
+    u.Empleado_idEmpleado ??
+    u.empleadoId ??
+    u.idEmpleado ??
+    u.EmpleadoId ??
+    u.empleado?.idEmpleado ??
+    u.empleado?.IdEmpleado ??
+    req.empleadoId ??
+    req.idEmpleado ??
+    req.Empleado_idEmpleado ??
+    req.EmpleadoId ??
+    null;
+
+  return {
+    idUsuario: toNumOrNull(idUsuarioRaw),
+    rol: String(rolRaw || "").trim(),
+    empleadoId: toNumOrNull(empleadoIdRaw),
+    raw: u,
+  };
 }
 
 function isAdminOrJefatura(rol) {
@@ -65,6 +112,33 @@ async function q(connOrDb, sql, params) {
       resolve(rows);
     });
   });
+}
+
+const _colCache = new Map();
+async function hasColumn(connOrDb, tableName, columnName) {
+  const key = `${String(tableName || "").toLowerCase()}::${String(columnName || "").toLowerCase()}`;
+  if (_colCache.has(key)) return _colCache.get(key);
+
+  try {
+    const rows = await q(
+      connOrDb,
+      `
+      SELECT 1 AS ok
+        FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = ?
+         AND column_name = ?
+       LIMIT 1
+      `,
+      [tableName, columnName]
+    );
+    const ok = !!(rows && rows[0] && rows[0].ok);
+    _colCache.set(key, ok);
+    return ok;
+  } catch (_e) {
+    _colCache.set(key, false);
+    return false;
+  }
 }
 
 function toSqlDateOnly(value) {
@@ -140,19 +214,22 @@ async function getPeriodoIdByFecha(conn, fecha) {
 }
 
 async function getEmpleadoIdByUsuario(connOrDb, idUsuario) {
-  if (!idUsuario) return null;
+  const idU = toNumOrNull(idUsuario);
+  if (!idU) return null;
 
   const queries = [
     `SELECT Empleado_idEmpleado AS idEmpleado FROM usuario WHERE idUsuario = ? LIMIT 1`,
     `SELECT idEmpleado AS idEmpleado FROM usuario WHERE idUsuario = ? LIMIT 1`,
     `SELECT Empleado_idEmpleado AS idEmpleado FROM usuarios WHERE idUsuario = ? LIMIT 1`,
     `SELECT idEmpleado AS idEmpleado FROM usuarios WHERE idUsuario = ? LIMIT 1`,
+    `SELECT Empleado_idEmpleado AS idEmpleado FROM Usuario WHERE idUsuario = ? LIMIT 1`,
+    `SELECT Empleado_idEmpleado AS idEmpleado FROM Usuarios WHERE idUsuario = ? LIMIT 1`,
   ];
 
   for (const sql of queries) {
     try {
-      const rows = await q(connOrDb, sql, [idUsuario]);
-      const id = rows && rows[0] ? rows[0].idEmpleado : null;
+      const rows = await q(connOrDb, sql, [idU]);
+      const id = rows && rows[0] ? toNumOrNull(rows[0].idEmpleado) : null;
       if (id) return id;
     } catch (_e) {}
   }
@@ -625,15 +702,32 @@ async function aprobarIncapacidad(req, res) {
         throw e;
       }
 
+      const hasObs = await hasColumn(conn, "incapacidad", "Observacion");
+      const hasMotivo = await hasColumn(conn, "incapacidad", "Motivo");
+
+      const sets = ["Catalogo_Estado_idCatalogo_Estado = ?"];
+      const paramsUpd = [estadoValidadaId];
+
+      if (Observacion && hasObs) {
+        sets.push("Observacion = ?");
+        paramsUpd.push(Observacion);
+      }
+      if (Observacion && hasMotivo) {
+        sets.push("Motivo = ?");
+        paramsUpd.push(Observacion);
+      }
+
+      paramsUpd.push(id);
+
       await q(
         conn,
         `
         UPDATE incapacidad
-           SET Catalogo_Estado_idCatalogo_Estado = ?
+           SET ${sets.join(", ")}
          WHERE idIncapacidad = ?
            AND Activo = b'1'
         `,
-        [estadoValidadaId, id]
+        paramsUpd
       );
 
       const iniSql = toSqlDateOnly(incRows[0].Fecha_Inicio);
@@ -745,15 +839,32 @@ async function rechazarIncapacidad(req, res) {
 
       incForAsistencia = incRows[0];
 
+      const hasObs = await hasColumn(conn, "incapacidad", "Observacion");
+      const hasMotivo = await hasColumn(conn, "incapacidad", "Motivo");
+
+      const sets = ["Catalogo_Estado_idCatalogo_Estado = ?"];
+      const paramsUpd = [estadoRechazadaId];
+
+      if (Motivo && hasObs) {
+        sets.push("Observacion = ?");
+        paramsUpd.push(Motivo);
+      }
+      if (hasMotivo) {
+        sets.push("Motivo = ?");
+        paramsUpd.push(Motivo || "");
+      }
+
+      paramsUpd.push(id);
+
       const result = await q(
         conn,
         `
         UPDATE incapacidad
-           SET Catalogo_Estado_idCatalogo_Estado = ?
+           SET ${sets.join(", ")}
          WHERE idIncapacidad = ?
            AND Activo = b'1'
         `,
-        [estadoRechazadaId, id]
+        paramsUpd
       );
 
       if (!result || result.affectedRows === 0) {
@@ -762,11 +873,11 @@ async function rechazarIncapacidad(req, res) {
         throw e;
       }
 
-      const empleadoId = Number(incForAsistencia.Empleado_idEmpleado || 0);
+      const empleadoIdNum = Number(incForAsistencia.Empleado_idEmpleado || 0);
       const iniSql = toSqlDateOnly(incForAsistencia.Fecha_Inicio);
       const finSql = toSqlDateOnly(incForAsistencia.Fecha_Fin);
 
-      if (empleadoId && iniSql && finSql) {
+      if (empleadoIdNum && iniSql && finSql) {
         const obsPref = `RECHAZADA (Incapacidad #${id})`;
         const obsFinal = Motivo ? `${obsPref}: ${Motivo}` : obsPref;
 
@@ -791,7 +902,7 @@ async function rechazarIncapacidad(req, res) {
              AND a.Empleado_idEmpleado = ?
              AND DATE(a.Fecha) BETWEEN DATE(?) AND DATE(?)
           `,
-          [obsFinal, obsPref, empleadoId, iniSql, finSql]
+          [obsFinal, obsPref, empleadoIdNum, iniSql, finSql]
         );
       }
 

@@ -19,7 +19,8 @@ const api = axios.create({
 // ✅ Request interceptor: token + rol
 api.interceptors.request.use(
   (config) => {
-    config.headers = config.headers || {};
+    // Axios v1 puede traer headers como objeto especial; esto evita pisarlo.
+    config.headers = config.headers ?? {};
 
     const token =
       localStorage.getItem("token") ||
@@ -46,14 +47,12 @@ api.interceptors.request.use(
     // ✅ Content-Type inteligente:
     // - Si es FormData: NO seteamos Content-Type (axios/browser ponen boundary).
     // - Si NO es FormData y no viene seteado: ponemos JSON por defecto.
-    const isFormData =
-      typeof FormData !== "undefined" && config.data instanceof FormData;
+    // - Evitar setear Content-Type en GET/DELETE para no disparar preflight innecesario.
+    const method = String(config.method || "get").toLowerCase();
+    const isFormData = typeof FormData !== "undefined" && config.data instanceof FormData;
 
-    if (!isFormData) {
-      const ct =
-        config.headers["Content-Type"] ||
-        config.headers["content-type"] ||
-        "";
+    if (!isFormData && method !== "get" && method !== "delete") {
+      const ct = config.headers["Content-Type"] || config.headers["content-type"] || "";
       if (!ct) config.headers["Content-Type"] = "application/json";
     }
 

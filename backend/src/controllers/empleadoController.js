@@ -195,20 +195,25 @@ async function obtenerMiEmpleado(req, res, next) {
 
     const nombreCompleto = nombreCompletoDesdePersona(r);
 
+    // ✅ AJUSTE: además de "empleado", devolvemos también las claves planas
+    // para que el frontend funcione aunque espere el objeto directo.
+    const empleado = {
+      idEmpleado: Number(r.idEmpleado),
+      personaId: Number(r.Persona_idPersona),
+      activo: 1,
+      nombreCompleto,
+      nombre: nombreCompleto,
+      persona: {
+        Nombre: String(r.Nombre || ""),
+        Apellido1: String(r.Apellido1 || ""),
+        Apellido2: String(r.Apellido2 || ""),
+      },
+    };
+
     return res.json({
       ok: true,
-      empleado: {
-        idEmpleado: Number(r.idEmpleado),
-        personaId: Number(r.Persona_idPersona),
-        activo: 1,
-        nombreCompleto,
-        nombre: nombreCompleto,
-        persona: {
-          Nombre: String(r.Nombre || ""),
-          Apellido1: String(r.Apellido1 || ""),
-          Apellido2: String(r.Apellido2 || ""),
-        },
-      },
+      empleado,
+      ...empleado, // ✅ compatibilidad hacia atrás: idEmpleado/nombreCompleto/nombre/etc. al root
     });
   } catch (error) {
     return next(error);

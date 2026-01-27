@@ -2,7 +2,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner, Badge, Alert } from "react-bootstrap";
 import { DataGrid } from "@mui/x-data-grid";
-import api from "../../api/axios";
+import {
+  aprobarPermiso,
+  crearPermiso,
+  desactivarPermiso,
+  listarEmpleados,
+  listarPermisos,
+  listarTiposPermiso,
+  obtenerMiEmpleado,
+  rechazarPermiso,
+} from "../../services/permisosService";
 
 function pad2(n) {
   const x = Number(n);
@@ -69,13 +78,6 @@ function normalizeEmpleadoRow(r) {
   return { idEmpleado: Number(idEmpleado), nombre: String(nombre) };
 }
 
-function extractList(data) {
-  if (!data) return [];
-  if (Array.isArray(data?.permisos)) return data.permisos;
-  if (Array.isArray(data)) return data;
-  return [];
-}
-
 function EstadoBadge({ estadoId }) {
   const id = Number(estadoId || 0);
   if (id === 2) return <Badge style={{ backgroundColor: "var(--dm-red)", color: "white" }}>Aprobado</Badge>;
@@ -118,10 +120,8 @@ function getAuthContext() {
 
   if (payload && typeof payload === "object") {
     const role = payload?.rolNombre ?? payload?.rol ?? payload?.role ?? payload?.Rol ?? "";
-
     const empleadoId =
       payload?.empleadoId ?? payload?.Empleado_idEmpleado ?? payload?.idEmpleado ?? payload?.EmpleadoId ?? null;
-
     const nombre = payload?.nombre ?? payload?.Nombre ?? payload?.NombreCompleto ?? payload?.nombreUsuario ?? "";
 
     const roleStr = String(role || "").trim();
@@ -140,8 +140,16 @@ function getAuthContext() {
 export default function Permisos() {
   const auth = useMemo(() => getAuthContext(), []);
   const roleLower = String(auth?.role || "").toLowerCase();
+
   const esAdmin = roleLower === "admin";
   const esColaborador = roleLower === "colaborador";
+
+  // ✅ NUEVO: planilla (mismo comportamiento que colaborador)
+  const esPlanilla = roleLower === "personal de planilla" || roleLower.includes("planilla");
+
+  // ✅ NUEVO: roles self-only
+  const esSelfOnly = esColaborador || esPlanilla;
+
   const esAdminOJefatura = roleLower === "admin" || roleLower === "jefatura";
 
   const [loading, setLoading] = useState(false);
@@ -185,7 +193,8 @@ export default function Permisos() {
   const abrirCrear = useCallback(() => {
     limpiarMensajes();
 
-    if (esColaborador) {
+    // ✅ Colaborador/Planilla: empleado fijo
+    if (esSelfOnly) {
       const id = miEmpleado?.idEmpleado ? String(miEmpleado.idEmpleado) : "";
       setCEmpleadoId(id);
     } else {
@@ -197,14 +206,14 @@ export default function Permisos() {
     setCInicio("");
     setCFin("");
     setShowCrear(true);
-  }, [esColaborador, miEmpleado?.idEmpleado, fEmpleadoId, limpiarMensajes]);
+  }, [esSelfOnly, miEmpleado?.idEmpleado, fEmpleadoId, limpiarMensajes]);
 
   const cargarMiEmpleado = useCallback(async () => {
-    if (!esColaborador) return;
+    // ✅ Colaborador/Planilla: cargar empleado "me"
+    if (!esSelfOnly) return;
 
     try {
-      const { data } = await api.get("/empleados/me");
-      const emp = data?.empleado || null;
+      const emp = await obtenerMiEmpleado();
 
       if (!emp?.idEmpleado) {
         setMiEmpleado(null);
@@ -230,18 +239,18 @@ export default function Permisos() {
       setCEmpleadoId("");
       setErrorMsg(err?.response?.data?.mensaje || err?.response?.data?.message || "Error cargando mi empleado");
     }
-  }, [esColaborador]);
+  }, [esSelfOnly]);
 
   const cargarEmpleados = useCallback(async () => {
     try {
-      if (esColaborador) {
+      // ✅ Colaborador/Planilla: no listar todos, solo su empleado
+      if (esSelfOnly) {
         await cargarMiEmpleado();
         return;
       }
 
-      const { data } = await api.get("/empleados");
-      const lista = Array.isArray(data?.empleados) ? data.empleados : Array.isArray(data) ? data : [];
-      const mapped = lista
+      const lista = await listarEmpleados();
+      const mapped = (lista || [])
         .map(normalizeEmpleadoRow)
         .filter((x) => x.idEmpleado && !Number.isNaN(x.idEmpleado))
         .sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -249,29 +258,12 @@ export default function Permisos() {
     } catch (err) {
       setErrorMsg(err?.response?.data?.mensaje || "Error cargando empleados");
     }
-  }, [esColaborador, cargarMiEmpleado]);
+  }, [esSelfOnly, cargarMiEmpleado]);
 
-  // ✅ FIX: leer correctamente lo que devuelve su backend: { ok:true, tiposPermiso:[...] }
   const cargarTiposPermiso = useCallback(async () => {
     try {
-      const { data } = await api.get("/catalogos/tipos-permiso");
-
-      const lista =
-        Array.isArray(data?.tiposPermiso) ? data.tiposPermiso :
-        Array.isArray(data?.tipos) ? data.tipos :
-        Array.isArray(data) ? data :
-        [];
-
-      const mapped = lista
-        .map((t) => ({
-          id: Number(t?.idCatalogo_Tipo_Permiso ?? t?.id ?? t?.Id ?? 0),
-          descripcion: String(t?.Descripcion ?? t?.descripcion ?? t?.Nombre ?? t?.nombre ?? ""),
-          activo: Number(t?.Activo ?? t?.activo ?? 1),
-        }))
-        .filter((x) => x.id && x.descripcion)
-        .sort((a, b) => a.descripcion.localeCompare(b.descripcion));
-
-      setTipos(mapped);
+      const mapped = await listarTiposPermiso();
+      setTipos(Array.isArray(mapped) ? mapped : []);
     } catch {
       setTipos([]);
     }
@@ -293,15 +285,15 @@ export default function Permisos() {
         if (desdeEff) params.desde = desdeEff;
         if (hastaEff) params.hasta = hastaEff;
 
-        if (!esColaborador) {
+        // ✅ Colaborador/Planilla: NO mandar empleadoId (backend aplica scope)
+        if (!esSelfOnly) {
           const empleadoIdEff = overrides.empleadoId ?? fEmpleadoId;
           if (empleadoIdEff) params.empleadoId = empleadoIdEff;
         }
 
-        const { data } = await api.get("/permisos", { params });
-        const lista = extractList(data);
+        const lista = await listarPermisos(params);
 
-        const mapped = lista.map((r) => ({
+        const mapped = (lista || []).map((r) => ({
           ...r,
           id: r?.idPermisos ?? r?.id ?? r?.Id ?? null,
         }));
@@ -316,7 +308,7 @@ export default function Permisos() {
         setLoading(false);
       }
     },
-    [esColaborador, fEmpleadoId, fEstadoId, fFechaDesde, fFechaHasta, limpiarMensajes]
+    [esSelfOnly, fEmpleadoId, fEstadoId, fFechaDesde, fFechaHasta, limpiarMensajes]
   );
 
   const cargar = useCallback(async () => {
@@ -338,7 +330,7 @@ export default function Permisos() {
     })();
   }, [cargarEmpleados, cargarTiposPermiso, cargarConOverrides]);
 
-  const crearPermiso = useCallback(async () => {
+  const crearPermisoFn = useCallback(async () => {
     limpiarMensajes();
 
     const tipo = Number(cTipoId || 0);
@@ -346,7 +338,8 @@ export default function Permisos() {
     const iniLocal = String(cInicio || "").trim();
     const finLocal = String(cFin || "").trim();
 
-    const emp = esColaborador ? Number(miEmpleado?.idEmpleado || 0) : Number(cEmpleadoId || 0);
+    // ✅ Colaborador/Planilla: empleado fijo desde miEmpleado
+    const emp = esSelfOnly ? Number(miEmpleado?.idEmpleado || 0) : Number(cEmpleadoId || 0);
 
     if (!emp || !tipo || !desc || !iniLocal || !finLocal) {
       setErrorMsg("Debe completar: Empleado, Tipo, Descripción, Fecha Inicio y Fecha Fin");
@@ -376,7 +369,7 @@ export default function Permisos() {
         Tipo_Permiso_idTipo_Permiso: tipo,
       };
 
-      const { data } = await api.post("/permisos", body);
+      const data = await crearPermiso(body);
 
       const traslapes = data?.warnings?.traslapes;
       if (Array.isArray(traslapes) && traslapes.length > 0) {
@@ -397,7 +390,7 @@ export default function Permisos() {
     } finally {
       setAccionLoading(false);
     }
-  }, [esColaborador, miEmpleado?.idEmpleado, cEmpleadoId, cTipoId, cDescripcion, cInicio, cFin, limpiarMensajes, cargar]);
+  }, [esSelfOnly, miEmpleado?.idEmpleado, cEmpleadoId, cTipoId, cDescripcion, cInicio, cFin, limpiarMensajes, cargar]);
 
   const aprobar = useCallback(
     async (id) => {
@@ -405,7 +398,7 @@ export default function Permisos() {
       setAccionLoading(true);
       limpiarMensajes();
       try {
-        await api.put(`/permisos/${id}/aprobar`, {});
+        await aprobarPermiso(id);
         setOkMsg("Permiso aprobado");
         await cargar();
       } catch (err) {
@@ -423,7 +416,7 @@ export default function Permisos() {
       setAccionLoading(true);
       limpiarMensajes();
       try {
-        await api.put(`/permisos/${id}/rechazar`, {});
+        await rechazarPermiso(id);
         setOkMsg("Permiso rechazado");
         await cargar();
       } catch (err) {
@@ -441,7 +434,7 @@ export default function Permisos() {
       setAccionLoading(true);
       limpiarMensajes();
       try {
-        await api.delete(`/permisos/${id}`);
+        await desactivarPermiso(id);
         setOkMsg("Permiso desactivado");
         await cargar();
       } catch (err) {
@@ -467,7 +460,8 @@ export default function Permisos() {
       cols.push({ field: "idPermisos", headerName: "ID", flex: 0.6, minWidth: 90 });
     }
 
-    if (esAdmin && !esColaborador) {
+    // ✅ si es Admin y NO es self-only (colaborador/planilla), mostrar ID empleado
+    if (esAdmin && !esSelfOnly) {
       cols.push({ field: "Empleado_idEmpleado", headerName: "Empleado ID", flex: 1, minWidth: 130 });
     }
 
@@ -555,9 +549,10 @@ export default function Permisos() {
     }
 
     return cols;
-  }, [tipos, aprobar, rechazar, desactivar, accionLoading, esColaborador, esAdminOJefatura, esAdmin]);
+  }, [tipos, aprobar, rechazar, desactivar, accionLoading, esSelfOnly, esAdminOJefatura, esAdmin]);
 
-  const empleadoLabelColab = useMemo(() => {
+  // ✅ label para colaborador/planilla
+  const empleadoLabelSelf = useMemo(() => {
     const nombre = miEmpleado?.nombreCompleto || miEmpleado?.nombre || "";
     if (nombre) return nombre;
     return "No asociado";
@@ -584,7 +579,7 @@ export default function Permisos() {
 
       <div className="p-3 mb-3 border rounded bg-light">
         <Row className="g-2 align-items-end">
-          {!esColaborador ? (
+          {!esSelfOnly ? (
             <Col xs={12} md={4}>
               <Form.Label>Empleado</Form.Label>
               <Form.Select value={fEmpleadoId} onChange={(e) => setFEmpleadoId(e.target.value)}>
@@ -599,7 +594,7 @@ export default function Permisos() {
           ) : (
             <Col xs={12} md={4}>
               <Form.Label>Empleado</Form.Label>
-              <Form.Control value={empleadoLabelColab} disabled />
+              <Form.Control value={empleadoLabelSelf} disabled />
             </Col>
           )}
 
@@ -654,8 +649,8 @@ export default function Permisos() {
             <Col xs={12} md={6}>
               <Form.Label>Empleado</Form.Label>
 
-              {esColaborador ? (
-                <Form.Control value={empleadoLabelColab} disabled />
+              {esSelfOnly ? (
+                <Form.Control value={empleadoLabelSelf} disabled />
               ) : (
                 <Form.Select value={cEmpleadoId} onChange={(e) => setCEmpleadoId(e.target.value)}>
                   <option value="">Seleccione...</option>
@@ -707,7 +702,7 @@ export default function Permisos() {
           <Button variant="secondary" onClick={cerrarCrear} disabled={accionLoading}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={crearPermiso} disabled={accionLoading}>
+          <Button variant="primary" onClick={crearPermisoFn} disabled={accionLoading}>
             {accionLoading ? (
               <>
                 <Spinner size="sm" className="me-2" />

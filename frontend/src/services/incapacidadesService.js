@@ -20,8 +20,7 @@ function stripTimeIfPresent(dmy) {
   return m ? m[1] : s;
 }
 
-export const setAuth = () => {};
-
+// ✅ LISTAR (backend aplica scope según rol)
 export const listarIncapacidades = async () => {
   try {
     const { data } = await api.get("/incapacidades");
@@ -44,6 +43,7 @@ export const crearIncapacidad = async (payload) => {
   try {
     const clean = { ...(payload || {}) };
 
+    // ✅ eliminar período inválido
     if (
       clean.Catalogo_Periodo_idCatalogo_Periodo === "" ||
       clean.Catalogo_Periodo_idCatalogo_Periodo === null ||
@@ -53,8 +53,13 @@ export const crearIncapacidad = async (payload) => {
       delete clean.Catalogo_Periodo_idCatalogo_Periodo;
     }
 
-    if (clean.Fecha_Inicio !== undefined) clean.Fecha_Inicio = stripTimeIfPresent(clean.Fecha_Inicio);
-    if (clean.Fecha_Fin !== undefined) clean.Fecha_Fin = stripTimeIfPresent(clean.Fecha_Fin);
+    // ✅ backend espera fecha sin hora
+    if (clean.Fecha_Inicio !== undefined) {
+      clean.Fecha_Inicio = stripTimeIfPresent(clean.Fecha_Inicio);
+    }
+    if (clean.Fecha_Fin !== undefined) {
+      clean.Fecha_Fin = stripTimeIfPresent(clean.Fecha_Fin);
+    }
 
     const { data } = await api.post("/incapacidades", clean);
     return data;
@@ -68,9 +73,11 @@ export const subirArchivoIncapacidad = async (idIncapacidad, file) => {
     const formData = new FormData();
     formData.append("archivo", file);
 
-    const { data } = await api.post(`/incapacidades/${idIncapacidad}/archivo`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    // ✅ NO forzar Content-Type (axios lo maneja)
+    const { data } = await api.post(
+      `/incapacidades/${idIncapacidad}/archivo`,
+      formData
+    );
 
     return data;
   } catch (e) {
@@ -83,7 +90,10 @@ export const validarIncapacidad = async (idIncapacidad, Observacion) => {
     const obs = String(Observacion ?? "").trim();
     const body = obs ? { Observacion: obs } : undefined;
 
-    const { data } = await api.put(`/incapacidades/${idIncapacidad}/aprobar`, body);
+    const { data } = await api.put(
+      `/incapacidades/${idIncapacidad}/aprobar`,
+      body
+    );
     return data;
   } catch (e) {
     throwApiError(e);
@@ -95,7 +105,10 @@ export const rechazarIncapacidad = async (idIncapacidad, Observacion) => {
     const obs = String(Observacion ?? "").trim();
     const body = obs ? { Observacion: obs, Motivo: obs } : { Motivo: "" };
 
-    const { data } = await api.put(`/incapacidades/${idIncapacidad}/rechazar`, body);
+    const { data } = await api.put(
+      `/incapacidades/${idIncapacidad}/rechazar`,
+      body
+    );
     return data;
   } catch (e) {
     throwApiError(e);

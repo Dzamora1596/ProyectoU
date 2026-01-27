@@ -15,47 +15,37 @@ const {
 
 const router = express.Router();
 
+router.use(autenticarMiddleware);
+
+// ✅ Planilla = Colaborador (listar / ver / crear / subir archivo)
 router.get(
   "/",
-  autenticarMiddleware,
   requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
   listarIncapacidades
 );
 
 router.get(
   "/:id",
-  autenticarMiddleware,
   requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
   obtenerIncapacidad
 );
 
 router.post(
   "/",
-  autenticarMiddleware,
   requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
   crearIncapacidad
 );
 
 router.post(
   "/:id/archivo",
-  autenticarMiddleware,
   requireRole(["Admin", "Jefatura", "Personal de Planilla", "Colaborador"]),
   uploadIncapacidad.single("archivo"),
   subirArchivoIncapacidad
 );
 
-router.put(
-  "/:id/aprobar",
-  autenticarMiddleware,
-  requireRole(["Admin", "Jefatura"]),
-  aprobarIncapacidad
-);
+// 🔒 Solo Admin / Jefatura (igual que antes)
+router.put("/:id/aprobar", requireRole(["Admin", "Jefatura"]), aprobarIncapacidad);
 
-router.put(
-  "/:id/rechazar",
-  autenticarMiddleware,
-  requireRole(["Admin", "Jefatura"]),
-  rechazarIncapacidad
-);
+router.put("/:id/rechazar", requireRole(["Admin", "Jefatura"]), rechazarIncapacidad);
 
 module.exports = router;
