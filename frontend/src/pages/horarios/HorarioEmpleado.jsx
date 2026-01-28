@@ -3,12 +3,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Row, Spinner, Table } from "react-bootstrap";
 import {
   obtenerHorarioEmpleado,
-  obtenerDetalleHorarioEmpleado,  
+  obtenerDetalleHorarioEmpleado,
   listarCatalogosHorario,
   asignarCatalogoHorarioEmpleado,
   obtenerDetalleCatalogoHorario,
-} from "../../api/horariosApi";
-import { listarEmpleados } from "../../api/empleadosApi";
+} from "../../services/horariosService";
+
+import { listarEmpleados } from "../../services/empleadosService";
+
 
 function horaParaInput(v) {
   const s = String(v || "").trim();
@@ -102,6 +104,7 @@ export default function HorarioEmpleado() {
   const hayEmpleado = !!Number(idEmpleado);
   const hayCatalogoSeleccionado = !!Number(catalogoSeleccionado);
   const hayAsignado = !!horarioAsignado;
+
   const detalleMostrado = useMemo(() => {
     const cat = Number(catalogoSeleccionado);
     if (cat) return detalleCatalogo;
@@ -156,6 +159,7 @@ export default function HorarioEmpleado() {
       setCargandoCatalogos(false);
     }
   }, []);
+
   const cargarDetalleDeCatalogo = useCallback(async (idCat) => {
     const cat = Number(idCat || 0);
     if (!cat) {
@@ -193,10 +197,8 @@ export default function HorarioEmpleado() {
     setInfo("");
 
     try {
-       
       let r = await obtenerHorarioEmpleado(emp);
 
-       
       const data1 = extractApiData(r);
       const maybeHorario = data1?.horario;
       const maybeDetalle = data1?.detalle;
@@ -215,7 +217,6 @@ export default function HorarioEmpleado() {
       const backendCat = h?.idCatalogoHorario ? String(h.idCatalogoHorario) : "";
       setCatalogoSeleccionado((prev) => (prev ? prev : backendCat));
 
-       
       setDetalleCatalogo(buildDetalleCompleto(rawDetalle));
 
       if (!h) setInfo("Este empleado aún no tiene horario asignado. Seleccioná un catálogo y asignalo.");
@@ -286,6 +287,18 @@ export default function HorarioEmpleado() {
     return (catalogos || []).find((c) => Number(c.idCatalogoHorario) === id) || null;
   }, [catalogoSeleccionado, catalogos]);
 
+  const mostrarIdsEnUI = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("usuario") || "";
+      if (!raw) return false;
+      const u = JSON.parse(raw);
+      const rolId = Number(u?.rolId ?? u?.Rol_idRol ?? u?.rol_id ?? u?.idRol ?? 0);
+      return rolId === 1;
+    } catch {
+      return false;
+    }
+  }, []);
+
   return (
     <div className="container-fluid py-3">
       <div className="d-flex align-items-center justify-content-between mb-3">
@@ -314,7 +327,8 @@ export default function HorarioEmpleado() {
                     if (!id) return null;
                     return (
                       <option key={id} value={id}>
-                        {getEmpleadoNombre(emp)} (ID: {id})
+                        {getEmpleadoNombre(emp)}
+                        {mostrarIdsEnUI ? ` (ID: ${id})` : ""}
                       </option>
                     );
                   })}
@@ -392,8 +406,12 @@ export default function HorarioEmpleado() {
                   : ""}
               </div>
               <div style={{ color: "#666" }}>
-                idCatálogo: {horarioAsignado?.idCatalogoHorario} · idHorarioEmpleado:{" "}
-                {horarioAsignado?.idHorarioEmpleado}
+                {mostrarIdsEnUI ? (
+                  <>
+                    idCatálogo: {horarioAsignado?.idCatalogoHorario} · idHorarioEmpleado:{" "}
+                    {horarioAsignado?.idHorarioEmpleado}
+                  </>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -448,10 +466,6 @@ export default function HorarioEmpleado() {
               ))}
             </tbody>
           </Table>
-
-          <div style={{ fontSize: 12, color: "#666" }}>
-             
-          </div>
         </Card.Body>
       </Card>
     </div>

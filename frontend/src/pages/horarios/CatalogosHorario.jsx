@@ -1,3 +1,4 @@
+// src/pages/horarios/CatalogosHorario.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Modal, Row, Spinner, Table } from "react-bootstrap";
 import {
@@ -10,7 +11,7 @@ import {
   actualizarDetalleCatalogoHorario,
   eliminarDetalleCatalogoHorario,
   listarTiposHorario,
-} from "../../api/horariosApi";
+} from "../../services/horariosService";
 
 const DIAS = [
   { diaSemana: 1, label: "Domingo" },
@@ -52,9 +53,8 @@ function buildDetalleCompleto(rawDetalle) {
     (Array.isArray(rawDetalle) ? rawDetalle : []).map((x) => [
       Number(x.diaSemana ?? x.Dia_Semana),
       {
-        idCatalogoHorarioDetalle: Number(
-          x.idCatalogoHorarioDetalle ?? x.idCatalogo_Horario_Detalle ?? 0
-        ) || 0,
+        idCatalogoHorarioDetalle:
+          Number(x.idCatalogoHorarioDetalle ?? x.idCatalogo_Horario_Detalle ?? 0) || 0,
         entrada: String(x.entrada ?? x.Entrada ?? ""),
         salida: String(x.salida ?? x.Salida ?? ""),
         activo: Number(x.activo ?? x.Activo ?? 1),
@@ -73,6 +73,12 @@ function buildDetalleCompleto(rawDetalle) {
       activo: found?.activo ?? 1,
     };
   });
+}
+
+function extractApiData(r) {
+  if (r?.ok) return r;
+  if (r?.data?.ok) return r.data;
+  return r?.data || r || {};
 }
 
 export default function CatalogosHorario() {
@@ -105,11 +111,10 @@ export default function CatalogosHorario() {
     setError("");
     try {
       const r = await listarCatalogosHorario();
-      const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+      const data = extractApiData(r);
       const list = Array.isArray(data?.catalogos) ? data.catalogos : [];
       setCatalogos(list);
     } catch (err) {
-      console.error("Error al listar catálogos:", err);
       setError(String(err?.message || err));
       setCatalogos([]);
     } finally {
@@ -118,9 +123,10 @@ export default function CatalogosHorario() {
   }, []);
 
   const cargarTiposHorario = useCallback(async () => {
+    setError("");
     try {
       const r = await listarTiposHorario();
-      const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+      const data = extractApiData(r);
       const list = Array.isArray(data?.tipos)
         ? data.tipos
         : Array.isArray(data?.tiposHorario)
@@ -128,7 +134,6 @@ export default function CatalogosHorario() {
         : [];
       setTiposHorario(list);
     } catch (err) {
-      console.error("Error al cargar tipos de horario:", err);
       setError(String(err?.message || err));
       setTiposHorario([]);
     }
@@ -149,13 +154,12 @@ export default function CatalogosHorario() {
 
     try {
       const r = await obtenerDetalleCatalogoHorario(id);
-      const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+      const data = extractApiData(r);
       const raw = Array.isArray(data?.detalle) ? data.detalle : [];
       setDetalle(buildDetalleCompleto(raw));
       setDetalleDirty(false);
       setInfo("Detalle cargado.");
     } catch (err) {
-      console.error("Error al cargar detalle:", err);
       setDetalle(buildDetalleCompleto([]));
       setDetalleDirty(false);
       setError(String(err?.message || err));
@@ -242,7 +246,7 @@ export default function CatalogosHorario() {
 
     try {
       const r = await crearCatalogoHorario({ descripcion, tipoHorarioId, activo });
-      const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+      const data = extractApiData(r);
       setInfo(data?.mensaje || "Catálogo creado.");
       setShowNuevoCatalogo(false);
       await cargarCatalogos();
@@ -252,7 +256,6 @@ export default function CatalogosHorario() {
         await seleccionarCatalogo(String(newId));
       }
     } catch (err) {
-      console.error("Error al crear catálogo:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -295,12 +298,11 @@ export default function CatalogosHorario() {
 
     try {
       const r = await actualizarCatalogoHorario(id, { descripcion, tipoHorarioId, activo });
-      const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+      const data = extractApiData(r);
       setInfo(data?.mensaje || "Catálogo actualizado.");
       setShowEditarCatalogo(false);
       await cargarCatalogos();
     } catch (err) {
-      console.error("Error al actualizar catálogo:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -320,7 +322,7 @@ export default function CatalogosHorario() {
 
     try {
       const r = await eliminarCatalogoHorario(id);
-      const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+      const data = extractApiData(r);
       setInfo(data?.mensaje || "Catálogo desactivado.");
       setCatalogoId("");
       setCatalogoActual(null);
@@ -328,7 +330,6 @@ export default function CatalogosHorario() {
       setDetalleDirty(false);
       await cargarCatalogos();
     } catch (err) {
-      console.error("Error al desactivar catálogo:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -342,7 +343,8 @@ export default function CatalogosHorario() {
       return;
     }
 
-    const tieneHoras = (entrada, salida) => !!(String(entrada || "").trim() && String(salida || "").trim());
+    const tieneHoras = (entrada, salida) =>
+      !!(String(entrada || "").trim() && String(salida || "").trim());
 
     const cambios = (detalle || []).map((d) => {
       const entradaHHMM = horaParaInput(d.entrada);
@@ -400,7 +402,7 @@ export default function CatalogosHorario() {
             activo: c.activo,
           });
 
-          const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+          const data = extractApiData(r);
           const newId = Number(data?.idCatalogoHorarioDetalle || 0);
           if (newId) {
             setDetalle((prev) =>
@@ -420,7 +422,6 @@ export default function CatalogosHorario() {
       await cargarCatalogos();
       await cargarDetalleCatalogo(id);
     } catch (err) {
-      console.error("Error al guardar detalle:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -450,12 +451,11 @@ export default function CatalogosHorario() {
 
     try {
       const r = await eliminarDetalleCatalogoHorario(id, idDet);
-      const data = r?.ok ? r : r?.data?.ok ? r.data : r?.data || r || {};
+      const data = extractApiData(r);
       setInfo(data?.mensaje || "Detalle desactivado.");
       await cargarDetalleCatalogo(id);
       await cargarCatalogos();
     } catch (err) {
-      console.error("Error al desactivar detalle:", err);
       setError(String(err?.message || err));
     } finally {
       setGuardando(false);
@@ -486,8 +486,16 @@ export default function CatalogosHorario() {
         </div>
       </div>
 
-      {error ? <Alert variant="danger" dismissible onClose={() => setError("")}>{error}</Alert> : null}
-      {info ? <Alert variant="success" dismissible onClose={() => setInfo("")}>{info}</Alert> : null}
+      {error ? (
+        <Alert variant="danger" dismissible onClose={() => setError("")}>
+          {error}
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" dismissible onClose={() => setInfo("")}>
+          {info}
+        </Alert>
+      ) : null}
 
       <Card className="mb-3">
         <Card.Body>
@@ -500,9 +508,7 @@ export default function CatalogosHorario() {
                   onChange={(ev) => seleccionarCatalogo(ev.target.value)}
                   disabled={cargandoCatalogos || guardando}
                 >
-                  <option value="">
-                    {cargandoCatalogos ? "Cargando..." : "Seleccione un catálogo"}
-                  </option>
+                  <option value="">{cargandoCatalogos ? "Cargando..." : "Seleccione un catálogo"}</option>
                   {catalogos.map((c) => (
                     <option key={c.idCatalogoHorario} value={c.idCatalogoHorario}>
                       {c.descripcion}
@@ -515,21 +521,13 @@ export default function CatalogosHorario() {
             </Col>
 
             <Col md="auto">
-              <Button
-                variant="outline-primary"
-                onClick={abrirEditarCatalogo}
-                disabled={!catalogoId || guardando}
-              >
-                Editar 
+              <Button variant="outline-primary" onClick={abrirEditarCatalogo} disabled={!catalogoId || guardando}>
+                Editar
               </Button>
             </Col>
 
             <Col md="auto">
-              <Button
-                variant="outline-danger"
-                onClick={desactivarCatalogo}
-                disabled={!catalogoId || guardando}
-              >
+              <Button variant="outline-danger" onClick={desactivarCatalogo} disabled={!catalogoId || guardando}>
                 Desactivar
               </Button>
             </Col>
@@ -539,9 +537,7 @@ export default function CatalogosHorario() {
             <div className="mt-3" style={{ fontSize: 14, color: "#555" }}>
               <div>
                 <strong>Seleccionado:</strong> {catalogoActual.descripcion}
-                {catalogoActual.tipoHorarioDescripcion
-                  ? ` — ${catalogoActual.tipoHorarioDescripcion}`
-                  : ""}
+                {catalogoActual.tipoHorarioDescripcion ? ` — ${catalogoActual.tipoHorarioDescripcion}` : ""}
               </div>
               <div>
                 ID: {catalogoActual.idCatalogoHorario} · Activo:{" "}
@@ -555,9 +551,7 @@ export default function CatalogosHorario() {
       <Card>
         <Card.Body>
           <div className="d-flex align-items-center justify-content-between mb-2">
-            <div style={{ fontWeight: 600 }}>
-              Detalle del catálogo (1=Domingo … 7=Sábado)
-            </div>
+            <div style={{ fontWeight: 600 }}>Detalle del catálogo (1=Domingo … 7=Sábado)</div>
             <div className="d-flex gap-2">
               <Button
                 variant="success"
@@ -575,9 +569,7 @@ export default function CatalogosHorario() {
             </div>
           </div>
 
-          {!catalogoId ? (
-            <Alert variant="secondary">Seleccione un catálogo para editar su detalle.</Alert>
-          ) : null}
+          {!catalogoId ? <Alert variant="secondary">Seleccione un catálogo para editar su detalle.</Alert> : null}
 
           <Table responsive bordered hover>
             <thead>
@@ -637,6 +629,7 @@ export default function CatalogosHorario() {
           </div>
         </Card.Body>
       </Card>
+
       <Modal show={showNuevoCatalogo} onHide={() => setShowNuevoCatalogo(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Nuevo catálogo</Modal.Title>
@@ -689,6 +682,7 @@ export default function CatalogosHorario() {
           </Button>
         </Modal.Footer>
       </Modal>
+
       <Modal show={showEditarCatalogo} onHide={() => setShowEditarCatalogo(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Editar catálogo</Modal.Title>
@@ -698,10 +692,7 @@ export default function CatalogosHorario() {
             <Col md={12}>
               <Form.Group>
                 <Form.Label>Descripción</Form.Label>
-                <Form.Control
-                  value={editDescripcion}
-                  onChange={(ev) => setEditDescripcion(ev.target.value)}
-                />
+                <Form.Control value={editDescripcion} onChange={(ev) => setEditDescripcion(ev.target.value)} />
               </Form.Group>
             </Col>
             <Col md={12}>

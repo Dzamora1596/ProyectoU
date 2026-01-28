@@ -1,4 +1,4 @@
-// empleadoService.js
+// src/services/empleadosService.js
 import api from "../api/axios";
 
 function throwApiError(err) {

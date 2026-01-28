@@ -21,10 +21,9 @@ import {
   crearRegistroPersonal,
   actualizarRegistroPersonal,
   desactivarRegistroPersonal,
-} from "../api/registroPersonalApi";
+} from "@/services/registroPersonalService";
 
-import { obtenerCatalogosRegistroPersonal } from "../api/catalogosApi";
-
+import { obtenerCatalogosRegistroPersonal } from "@/services/catalogosService";
 function toBool(v) {
   if (v === true || v === 1 || v === "1") return true;
   const s = String(v ?? "").toLowerCase().trim();

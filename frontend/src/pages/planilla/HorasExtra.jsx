@@ -14,8 +14,8 @@ import {
   ButtonGroup,
   InputGroup,
 } from "react-bootstrap";
-import { obtenerCatalogosEstadosPorModulo } from "../../api/catalogosApi";
-import { calcularHorasExtra, listarHorasExtra, cambiarEstadoHoraExtra } from "../../api/horasExtraApi";
+import { obtenerCatalogosEstadosPorModulo } from "@/services/catalogosService";
+import { calcularHorasExtra, listarHorasExtra, cambiarEstadoHoraExtra } from "@/services/horasExtraService";
 
 function pad2(n) {
   return String(Number(n || 0)).padStart(2, "0");

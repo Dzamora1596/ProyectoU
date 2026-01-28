@@ -10,10 +10,9 @@ import {
   desactivarUsuario,
   eliminarUsuarioHard,
   listarEmpleadosDisponibles,
-} from "../services/usuariosService";
+} from "@/services/usuariosService";
 
-import { obtenerCatalogosRoles } from "../api/catalogosApi";
-
+import { obtenerCatalogosRoles } from "@/services/catalogosService";
 const ESTADOS = [
   { value: "all", label: "Todos" },
   { value: "1", label: "Activos" },

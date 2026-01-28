@@ -1,7 +1,7 @@
-// src/api/horariosApi.js
-import api from "./axios";
+// frontend/src/services/horariosService.js
+import api from "../api/axios";
 
-function normalizarError(err) {
+function throwApiError(err) {
   const msg =
     err?.response?.data?.mensaje ||
     err?.response?.data?.message ||
@@ -15,63 +15,58 @@ function normalizarError(err) {
 
 const BASE = "/horarios";
 
-export async function obtenerHorarioEmpleado(idEmpleado) {
+export const listarHorariosLaborales = async () => {
   try {
-    const emp = Number(idEmpleado || 0);
-    if (!Number.isFinite(emp) || emp <= 0) throw new Error("idEmpleado inválido");
-    const { data } = await api.get(`${BASE}/empleado/${emp}`);
+    const { data } = await api.get(`${BASE}`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function obtenerHorarioEmpleadoBasico(idEmpleado) {
-   
-  return await obtenerHorarioEmpleado(idEmpleado);
-}
-
-export async function obtenerDetalleHorarioEmpleado(idEmpleado) {
+export const crearHorarioLaboral = async (payload) => {
   try {
-    const emp = Number(idEmpleado || 0);
-    if (!Number.isFinite(emp) || emp <= 0) throw new Error("idEmpleado inválido");
-    const { data } = await api.get(`${BASE}/empleado/${emp}/detalle`);
+    const { data } = await api.post(`${BASE}`, payload);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function asignarCatalogoHorarioEmpleado(idEmpleado, idCatalogoHorario) {
+export const actualizarHorarioLaboral = async (idHorarioLaboral, payload) => {
   try {
-    const emp = Number(idEmpleado || 0);
-    if (!Number.isFinite(emp) || emp <= 0) throw new Error("idEmpleado inválido");
+    const id = Number(idHorarioLaboral || 0);
+    if (!Number.isFinite(id) || id <= 0) throw new Error("idHorarioLaboral inválido");
 
-    let cat = 0;
-    if (typeof idCatalogoHorario === "object" && idCatalogoHorario !== null) {
-      cat = Number(idCatalogoHorario.idCatalogoHorario || 0);
-    } else {
-      cat = Number(idCatalogoHorario || 0);
-    }
-    if (!Number.isFinite(cat) || cat <= 0) throw new Error("idCatalogoHorario inválido");
-
-    const { data } = await api.put(`${BASE}/empleado/${emp}/detalle`, { idCatalogoHorario: cat });
+    const { data } = await api.put(`${BASE}/${id}`, payload);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function listarCatalogosHorario() {
+export const eliminarHorarioLaboral = async (idHorarioLaboral) => {
+  try {
+    const id = Number(idHorarioLaboral || 0);
+    if (!Number.isFinite(id) || id <= 0) throw new Error("idHorarioLaboral inválido");
+
+    const { data } = await api.delete(`${BASE}/${id}`);
+    return data;
+  } catch (err) {
+    throwApiError(err);
+  }
+};
+
+export const listarCatalogosHorario = async () => {
   try {
     const { data } = await api.get(`${BASE}/catalogos`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function crearCatalogoHorario(payload) {
+export const crearCatalogoHorario = async (payload) => {
   try {
     const body = {
       descripcion: String(payload?.descripcion ?? "").trim(),
@@ -81,11 +76,11 @@ export async function crearCatalogoHorario(payload) {
     const { data } = await api.post(`${BASE}/catalogos`, body);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function actualizarCatalogoHorario(idCatalogoHorario, payload) {
+export const actualizarCatalogoHorario = async (idCatalogoHorario, payload) => {
   try {
     const id = Number(idCatalogoHorario || 0);
     if (!Number.isFinite(id) || id <= 0) throw new Error("idCatalogoHorario inválido");
@@ -103,42 +98,44 @@ export async function actualizarCatalogoHorario(idCatalogoHorario, payload) {
     const { data } = await api.put(`${BASE}/catalogos/${id}`, body);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function eliminarCatalogoHorario(idCatalogoHorario) {
+export const eliminarCatalogoHorario = async (idCatalogoHorario) => {
   try {
     const id = Number(idCatalogoHorario || 0);
     if (!Number.isFinite(id) || id <= 0) throw new Error("idCatalogoHorario inválido");
+
     const { data } = await api.delete(`${BASE}/catalogos/${id}`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function listarTiposHorario() {
+export const listarTiposHorario = async () => {
   try {
     const { data } = await api.get(`${BASE}/tipos`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function obtenerDetalleCatalogoHorario(idCatalogoHorario) {
+export const obtenerDetalleCatalogoHorario = async (idCatalogoHorario) => {
   try {
     const id = Number(idCatalogoHorario || 0);
     if (!Number.isFinite(id) || id <= 0) throw new Error("idCatalogoHorario inválido");
+
     const { data } = await api.get(`${BASE}/catalogos/${id}/detalle`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function crearDetalleCatalogoHorario(idCatalogoHorario, payload) {
+export const crearDetalleCatalogoHorario = async (idCatalogoHorario, payload) => {
   try {
     const id = Number(idCatalogoHorario || 0);
     if (!Number.isFinite(id) || id <= 0) throw new Error("idCatalogoHorario inválido");
@@ -153,15 +150,15 @@ export async function crearDetalleCatalogoHorario(idCatalogoHorario, payload) {
     const { data } = await api.post(`${BASE}/catalogos/${id}/detalle`, body);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function actualizarDetalleCatalogoHorario(
+export const actualizarDetalleCatalogoHorario = async (
   idCatalogoHorario,
   idCatalogoHorarioDetalle,
   payload
-) {
+) => {
   try {
     const id = Number(idCatalogoHorario || 0);
     const det = Number(idCatalogoHorarioDetalle || 0);
@@ -178,11 +175,11 @@ export async function actualizarDetalleCatalogoHorario(
     const { data } = await api.put(`${BASE}/catalogos/${id}/detalle/${det}`, body);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function eliminarDetalleCatalogoHorario(idCatalogoHorario, idCatalogoHorarioDetalle) {
+export const eliminarDetalleCatalogoHorario = async (idCatalogoHorario, idCatalogoHorarioDetalle) => {
   try {
     const id = Number(idCatalogoHorario || 0);
     const det = Number(idCatalogoHorarioDetalle || 0);
@@ -192,47 +189,56 @@ export async function eliminarDetalleCatalogoHorario(idCatalogoHorario, idCatalo
     const { data } = await api.delete(`${BASE}/catalogos/${id}/detalle/${det}`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
- 
+};
 
-export async function listarHorariosLaborales() {
+export const obtenerHorarioEmpleado = async (idEmpleado) => {
   try {
-    const { data } = await api.get(`${BASE}`);
+    const emp = Number(idEmpleado || 0);
+    if (!Number.isFinite(emp) || emp <= 0) throw new Error("idEmpleado inválido");
+
+    const { data } = await api.get(`${BASE}/empleado/${emp}`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function crearHorarioLaboral(payload) {
+export const obtenerHorarioEmpleadoBasico = async (idEmpleado) => {
+  return await obtenerHorarioEmpleado(idEmpleado);
+};
+
+export const obtenerDetalleHorarioEmpleado = async (idEmpleado) => {
   try {
-    const { data } = await api.post(`${BASE}`, payload);
+    const emp = Number(idEmpleado || 0);
+    if (!Number.isFinite(emp) || emp <= 0) throw new Error("idEmpleado inválido");
+
+    const { data } = await api.get(`${BASE}/empleado/${emp}/detalle`);
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
+};
 
-export async function actualizarHorarioLaboral(idHorarioLaboral, payload) {
+export const asignarCatalogoHorarioEmpleado = async (idEmpleado, idCatalogoHorario) => {
   try {
-    const id = Number(idHorarioLaboral || 0);
-    if (!Number.isFinite(id) || id <= 0) throw new Error("idHorarioLaboral inválido");
-    const { data } = await api.put(`${BASE}/${id}`, payload);
+    const emp = Number(idEmpleado || 0);
+    if (!Number.isFinite(emp) || emp <= 0) throw new Error("idEmpleado inválido");
+
+    let cat = 0;
+    if (typeof idCatalogoHorario === "object" && idCatalogoHorario !== null) {
+      cat = Number(idCatalogoHorario.idCatalogoHorario || 0);
+    } else {
+      cat = Number(idCatalogoHorario || 0);
+    }
+    if (!Number.isFinite(cat) || cat <= 0) throw new Error("idCatalogoHorario inválido");
+
+    const { data } = await api.put(`${BASE}/empleado/${emp}/detalle`, {
+      idCatalogoHorario: cat,
+    });
     return data;
   } catch (err) {
-    normalizarError(err);
+    throwApiError(err);
   }
-}
-
-export async function eliminarHorarioLaboral(idHorarioLaboral) {
-  try {
-    const id = Number(idHorarioLaboral || 0);
-    if (!Number.isFinite(id) || id <= 0) throw new Error("idHorarioLaboral inválido");
-    const { data } = await api.delete(`${BASE}/${id}`);
-    return data;
-  } catch (err) {
-    normalizarError(err);
-  }
-}
+};
