@@ -1,7 +1,6 @@
-//src/pages/asistencias/ValidarAsistencias.jsx
+//ValidarAsistencias.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Col, Form, Modal, Row, Spinner, Badge, Alert } from "react-bootstrap";
-import { DataGrid } from "@mui/x-data-grid";
 import api from "../../api/axios";
 
 function formatHora(hhmmss) {
@@ -10,24 +9,17 @@ function formatHora(hhmmss) {
 }
 
 function EstadoBadge({ estado }) {
-  if (estado === "Confirmada") {
-    return <Badge style={{ backgroundColor: "#5da334", color: "white" }}>Confirmada</Badge>;
-  }
+  const isConfirmada = estado === "Confirmada";
+
   return (
-  
-    <Badge bg="danger">
-      Pendiente
+    <Badge className={["dm-pill", isConfirmada ? "bg-success" : "bg-marenco-red", "text-white"].join(" ")}>
+      {isConfirmada ? "Confirmada" : "Pendiente"}
     </Badge>
   );
 }
 
 function normalizeEmpleadoRow(r) {
-  const idEmpleado =
-    r?.idEmpleado ??
-    r?.id ??
-    r?.IdEmpleado ??
-    r?.Empleado_idEmpleado ??
-    null;
+  const idEmpleado = r?.idEmpleado ?? r?.id ?? r?.IdEmpleado ?? r?.Empleado_idEmpleado ?? null;
 
   const nombre =
     r?.nombre ??
@@ -70,17 +62,15 @@ function toYYYYMMDD_UTCFromParts(y, m, d) {
 }
 
 function isValidYMD(y, m, d) {
-  const yy = Number(y), mm = Number(m), dd = Number(d);
+  const yy = Number(y),
+    mm = Number(m),
+    dd = Number(d);
   if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return false;
   if (yy < 1900 || yy > 2100) return false;
   if (mm < 1 || mm > 12) return false;
   if (dd < 1 || dd > 31) return false;
   const dt = new Date(Date.UTC(yy, mm - 1, dd));
-  return (
-    dt.getUTCFullYear() === yy &&
-    dt.getUTCMonth() + 1 === mm &&
-    dt.getUTCDate() === dd
-  );
+  return dt.getUTCFullYear() === yy && dt.getUTCMonth() + 1 === mm && dt.getUTCDate() === dd;
 }
 
 function excelSerialToYYYYMMDD(serial) {
@@ -109,7 +99,6 @@ function normalizeFechaToYYYYMMDD(value) {
       }
     }
 
-  
     const serial = excelSerialToYYYYMMDD(value);
     if (serial) return serial;
   }
@@ -124,14 +113,12 @@ function normalizeFechaToYYYYMMDD(value) {
     return null;
   }
 
-   
   const dmyMatch = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
   if (dmyMatch) {
     let [, a, b, c] = dmyMatch;
     const p1 = Number(a);
     const p2 = Number(b);
 
-     
     let year = Number(c);
     if (String(c).length === 2) {
       year = year >= 70 ? 1900 + year : 2000 + year;
@@ -139,18 +126,20 @@ function normalizeFechaToYYYYMMDD(value) {
 
     let day, month;
     if (p1 > 12 && p2 <= 12) {
-      day = p1; month = p2;  
+      day = p1;
+      month = p2;
     } else if (p2 > 12 && p1 <= 12) {
-      day = p2; month = p1;  
+      day = p2;
+      month = p1;
     } else {
-      day = p1; month = p2;  
+      day = p1;
+      month = p2;
     }
 
     if (isValidYMD(year, month, day)) return toYYYYMMDD_UTCFromParts(year, month, day);
     return null;
   }
 
-   
   const t = Date.parse(s);
   if (Number.isFinite(t)) {
     const dt = new Date(t);
@@ -177,8 +166,8 @@ function dayOfWeek_1_7_fromYYYYMMDD(dateStr) {
   if (!isValidYMD(y, m, d)) return null;
 
   const dt = new Date(Date.UTC(y, m - 1, d));
-  const js = dt.getUTCDay();  
-  return js === 0 ? 1 : js + 1;  
+  const js = dt.getUTCDay();
+  return js === 0 ? 1 : js + 1;
 }
 
 function calcularTardiaAusenteSegunHorario({ fecha, entradaReal, detalleSemana, toleranciaMin = 0 }) {
@@ -277,12 +266,16 @@ export default function ValidarAsistencias() {
   const [errorMsg, setErrorMsg] = useState("");
   const [okMsg, setOkMsg] = useState("");
 
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 31 });
-
   const horariosCacheRef = useRef(new Map());
   const horariosInFlightRef = useRef(new Map());
 
+  const tableWrapRef = useRef(null);
+
   const TOLERANCIA_MIN = 0;
+  const PAGE_SIZE = 31;
+
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState({ key: "Fecha", dir: "desc" });
 
   const limpiarMensajes = useCallback(() => {
     setErrorMsg("");
@@ -294,15 +287,28 @@ export default function ValidarAsistencias() {
     setDetalle(null);
   }, []);
 
+  const resetTableScroll = useCallback(() => {
+    if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
+  }, []);
+
+  const setSortKey = useCallback(
+    (key) => {
+      setSort((prev) => {
+        const same = prev.key === key;
+        const dir = same ? (prev.dir === "asc" ? "desc" : "asc") : "asc";
+        return { key, dir };
+      });
+      setPage(1);
+      resetTableScroll();
+    },
+    [resetTableScroll]
+  );
+
   const cargarEmpleados = useCallback(async () => {
     try {
       const { data } = await api.get("/empleados");
 
-      const lista = Array.isArray(data?.empleados)
-        ? data.empleados
-        : Array.isArray(data)
-          ? data
-          : [];
+      const lista = Array.isArray(data?.empleados) ? data.empleados : Array.isArray(data) ? data : [];
 
       const mapped = lista
         .map(normalizeEmpleadoRow)
@@ -369,7 +375,6 @@ export default function ValidarAsistencias() {
         const cache = empId ? horariosCacheRef.current.get(empId) : null;
 
         const entradaReal = r?.Entrada ?? r?.IN ?? "00:00:00";
-
         const fechaNorm = normalizeFechaToYYYYMMDD(r?.Fecha) || r?.Fecha || null;
 
         const calc = calcularTardiaAusenteSegunHorario({
@@ -425,8 +430,9 @@ export default function ValidarAsistencias() {
 
         const enriched = await enriquecerRowsConHorario(mapped);
 
-        setPaginationModel((prev) => ({ ...prev, page: 0 }));
         setRows(enriched);
+        setPage(1);
+        resetTableScroll();
 
         if (enriched.length === 0) {
           setOkMsg("No se encontraron asistencias con los filtros seleccionados.");
@@ -437,7 +443,7 @@ export default function ValidarAsistencias() {
         setLoading(false);
       }
     },
-    [fEmpleadoId, fEstado, fFechaDesde, fFechaHasta, limpiarMensajes, enriquecerRowsConHorario]
+    [fEmpleadoId, fEstado, fFechaDesde, fFechaHasta, limpiarMensajes, enriquecerRowsConHorario, resetTableScroll]
   );
 
   const cargar = useCallback(async () => {
@@ -466,13 +472,10 @@ export default function ValidarAsistencias() {
           return;
         }
 
-        const empId = Number(
-          asistencia?.Empleado_idEmpleado ?? asistencia?.idEmpleado ?? asistencia?.EmpleadoId ?? 0
-        );
+        const empId = Number(asistencia?.Empleado_idEmpleado ?? asistencia?.idEmpleado ?? asistencia?.EmpleadoId ?? 0);
         const cache = empId ? await fetchHorarioEmpleadoDetalle(empId) : null;
 
         const entradaReal = asistencia?.Entrada ?? asistencia?.IN ?? "00:00:00";
-
         const fechaNorm = normalizeFechaToYYYYMMDD(asistencia?.Fecha) || asistencia?.Fecha || null;
 
         const calc = calcularTardiaAusenteSegunHorario({
@@ -543,9 +546,7 @@ export default function ValidarAsistencias() {
 
       setOkMsg(
         data?.mensaje ||
-          `Importación completada. Insertados: ${data?.insertados ?? 0}, Actualizados: ${
-            data?.actualizados ?? 0
-          }`
+          `Importación completada. Insertados: ${data?.insertados ?? 0}, Actualizados: ${data?.actualizados ?? 0}`
       );
 
       setShowImport(false);
@@ -576,189 +577,293 @@ export default function ValidarAsistencias() {
     await cargarConOverrides({ fechaDesde: r.desde, fechaHasta: r.hasta });
   }, [cargarConOverrides]);
 
-  const columns = useMemo(
-    () => [
-      {
-        field: "Fecha",
-        headerName: "Fecha",
-        flex: 1,
-        minWidth: 130,
-        renderCell: (p) => formatFechaDDMMYYYY(p?.row?.Fecha),
-        sortComparator: (v1, v2) => {
-          const a = normalizeFechaToYYYYMMDD(v1) || "";
-          const b = normalizeFechaToYYYYMMDD(v2) || "";
-          return a.localeCompare(b);
-        },
-      },
-      { field: "EmpleadoNombre", headerName: "Empleado", flex: 2, minWidth: 230 },
-      {
-        field: "Entrada",
-        headerName: "Entrada",
-        flex: 1,
-        minWidth: 110,
-        renderCell: (p) => formatHora(p?.row?.Entrada ?? p?.row?.IN),
-      },
-      {
-        field: "Salida",
-        headerName: "Salida",
-        flex: 1,
-        minWidth: 110,
-        renderCell: (p) => formatHora(p?.row?.Salida ?? p?.row?.OUT),
-      },
-      {
-        field: "__tardiaCalc",
-        headerName: "Tardía (horario)",
-        flex: 1,
-        minWidth: 140,
-        renderCell: (p) =>
-          p?.row?.__tardiaCalc === null ? "—" : p?.row?.__tardiaCalc === 1 ? "Sí" : "No",
-      },
-      {
-        field: "__ausenteCalc",
-        headerName: "Ausente (horario)",
-        flex: 1,
-        minWidth: 150,
-        renderCell: (p) =>
-          p?.row?.__ausenteCalc === null ? "—" : p?.row?.__ausenteCalc === 1 ? "Sí" : "No",
-      },
-      {
-        field: "Estado",
-        headerName: "Estado",
-        flex: 1,
-        minWidth: 130,
-        renderCell: (p) => <EstadoBadge estado={p?.row?.Estado} />,
-      },
-      {
-        field: "Observacion",
-        headerName: "Observación",
-        flex: 2,
-        minWidth: 250,
-        renderCell: (p) => (p?.row?.Observacion ? p.row.Observacion : ""),
-      },
-      {
-        field: "acciones",
-        headerName: "Acciones",
-        sortable: false,
-        filterable: false,
-        minWidth: 260,
-        renderCell: (p) => {
-          const row = p?.row;
-          if (!row) return null;
+  const sortedRows = useMemo(() => {
+    const list = Array.isArray(rows) ? [...rows] : [];
+    const dirMul = sort.dir === "asc" ? 1 : -1;
 
-          const esPendiente = row.Estado !== "Confirmada";
+    const getValue = (r) => {
+      switch (sort.key) {
+        case "Fecha":
+          return String(r?.Fecha || "");
+        case "Empleado":
+          return String(r?.EmpleadoNombre || "");
+        case "Entrada":
+          return String(r?.Entrada ?? r?.IN ?? "");
+        case "Salida":
+          return String(r?.Salida ?? r?.OUT ?? "");
+        case "Tardia":
+          return Number(r?.__tardiaCalc ?? -1);
+        case "Ausente":
+          return Number(r?.__ausenteCalc ?? -1);
+        case "Estado":
+          return String(r?.Estado || "");
+        case "Observacion":
+          return String(r?.Observacion || "");
+        default:
+          return "";
+      }
+    };
 
-          return (
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button size="sm" variant="outline-primary" onClick={() => abrirDetalle(row.idAsistencia)}>
-                Ver
-              </Button>
+    list.sort((a, b) => {
+      const va = getValue(a);
+      const vb = getValue(b);
 
-              {esPendiente ? (
-                <Button
-                  size="sm"
-                  variant="success"
-                  onClick={() => cambiarEstado(row.idAsistencia, "Confirmada")}
-                >
-                  Confirmar
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline-warning"
-                  onClick={() => cambiarEstado(row.idAsistencia, "Pendiente")}
-                >
-                  Quitar confirmación
-                </Button>
-              )}
-            </div>
-          );
-        },
-      },
-    ],
-    [abrirDetalle, cambiarEstado]
+      if (typeof va === "number" && typeof vb === "number") return (va - vb) * dirMul;
+      return String(va).localeCompare(String(vb), "es", { sensitivity: "base" }) * dirMul;
+    });
+
+    return list;
+  }, [rows, sort]);
+
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((sortedRows?.length || 0) / PAGE_SIZE);
+    return n > 0 ? n : 1;
+  }, [sortedRows?.length]);
+
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return sortedRows.slice(start, start + PAGE_SIZE);
+  }, [sortedRows, page, PAGE_SIZE]);
+
+  const goToPage = useCallback(
+    (p) => {
+      const next = Math.max(1, Math.min(totalPages, Number(p || 1)));
+      setPage(next);
+      if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
+    },
+    [totalPages]
+  );
+
+  const sortIcon = useCallback(
+    (key) => {
+      if (sort.key !== key) return "↕";
+      return sort.dir === "asc" ? "↑" : "↓";
+    },
+    [sort]
   );
 
   return (
-    <div className="p-3">
-      <Row className="mb-3 align-items-center">
-        <Col>
-          <h4 className="mb-0">Confirmar Asistencias</h4>
-        </Col>
-        <Col className="text-end">
-          <Button variant="primary" onClick={() => setShowImport(true)}>
-            Importar Excel
-          </Button>
-        </Col>
-      </Row>
-
-      {errorMsg ? <Alert variant="danger">{errorMsg}</Alert> : null}
-      {okMsg ? <Alert variant="success">{okMsg}</Alert> : null}
-      <div className="p-3 mb-3 border rounded bg-light">
-        <Row className="g-2 align-items-end">
-          <Col xs={12} md={5}>
-            <Form.Label>Empleado</Form.Label>
-            <Form.Select value={fEmpleadoId} onChange={(e) => setFEmpleadoId(e.target.value)}>
-              <option value="">Todos</option>
-              {empleados.map((emp) => (
-                <option key={emp.idEmpleado} value={emp.idEmpleado}>
-                  {emp.nombre} (ID: {emp.idEmpleado})
-                </option>
-              ))}
-            </Form.Select>
-          </Col>
-
-          <Col xs={12} md={3}>
-            <Form.Label>Estado</Form.Label>
-            <Form.Select value={fEstado} onChange={(e) => setFEstado(e.target.value)}>
-              <option value="">Todos</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Confirmada">Confirmada</option>
-            </Form.Select>
-          </Col>
-
-          <Col xs={6} md={2}>
-            <Form.Label>Desde</Form.Label>
-            <Form.Control type="date" value={fFechaDesde} onChange={(e) => setFFechaDesde(e.target.value)} />
-          </Col>
-
-          <Col xs={6} md={2}>
-            <Form.Label>Hasta</Form.Label>
-            <Form.Control type="date" value={fFechaHasta} onChange={(e) => setFFechaHasta(e.target.value)} />
-          </Col>
-
-          <Col xs={12} md="auto" className="mt-2 mt-md-0 d-flex gap-2">
-            <Button variant="outline-secondary" onClick={aplicarMesAnterior} disabled={loading}>
-              Mes anterior
-            </Button>
-            <Button variant="outline-secondary" onClick={aplicarMesActual} disabled={loading}>
-              Mes actual
-            </Button>
-          </Col>
-
-          <Col xs={12} className="d-grid mt-2">
-            <Button onClick={cargar} disabled={loading}>
-              {loading ? "Cargando..." : "Buscar"}
-            </Button>
-          </Col>
-        </Row>
+    <div className="container-fluid p-0">
+      <div className="card">
+        <div className="card-body">
+          <Row className="g-2 align-items-center">
+            <Col xs={12} md>
+              <h4 className="mb-0 text-marenco-red">Confirmar Asistencias</h4>
+              <div className="text-muted small">Gestión de Asistencia.</div>
+            </Col>
+            <Col xs={12} md="auto" className="d-grid d-md-block">
+              <Button variant="primary" onClick={() => setShowImport(true)} className="px-4">
+                Importar Excel
+              </Button>
+            </Col>
+          </Row>
+        </div>
       </div>
 
-      <div style={{ height: 560, width: "100%" }}>
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          loading={loading}
-          pageSizeOptions={[31, 62, 93]}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          disableRowSelectionOnClick
-          getRowId={(row) => row.idAsistencia ?? row.id}
-        />
+      {(errorMsg || okMsg) && (
+        <div className="mt-3">
+          {errorMsg ? (
+            <Alert variant="danger" className="dm-alert-accent mb-2">
+              {errorMsg}
+            </Alert>
+          ) : null}
+          {okMsg ? (
+            <Alert variant="success" className="dm-alert-accent mb-0">
+              {okMsg}
+            </Alert>
+          ) : null}
+        </div>
+      )}
+
+      <div className="card mt-3">
+        <div className="card-body">
+          <Row className="g-2 align-items-end">
+            <Col xs={12} md={5}>
+              <Form.Label>Empleado</Form.Label>
+              <Form.Select value={fEmpleadoId} onChange={(e) => setFEmpleadoId(e.target.value)}>
+                <option value="">Todos</option>
+                {empleados.map((emp) => (
+                  <option key={emp.idEmpleado} value={emp.idEmpleado}>
+                    {emp.nombre} (ID: {emp.idEmpleado})
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
+
+            <Col xs={12} md={3}>
+              <Form.Label>Estado</Form.Label>
+              <Form.Select value={fEstado} onChange={(e) => setFEstado(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="Pendiente">Pendiente</option>
+                <option value="Confirmada">Confirmada</option>
+              </Form.Select>
+            </Col>
+
+            <Col xs={6} md={2}>
+              <Form.Label>Desde</Form.Label>
+              <Form.Control type="date" value={fFechaDesde} onChange={(e) => setFFechaDesde(e.target.value)} />
+            </Col>
+
+            <Col xs={6} md={2}>
+              <Form.Label>Hasta</Form.Label>
+              <Form.Control type="date" value={fFechaHasta} onChange={(e) => setFFechaHasta(e.target.value)} />
+            </Col>
+
+            <Col xs={12} className="d-flex flex-wrap gap-2 mt-2">
+              <Button variant="outline-secondary" className="dm-btn-outline-red" onClick={aplicarMesAnterior} disabled={loading}>
+                Mes anterior
+              </Button>
+              <Button variant="outline-secondary" className="dm-btn-outline-red" onClick={aplicarMesActual} disabled={loading}>
+                Mes actual
+              </Button>
+              <Button variant="primary" onClick={cargar} disabled={loading} className="ms-auto">
+                {loading ? (
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <Spinner size="sm" />
+                    Cargando…
+                  </span>
+                ) : (
+                  "Buscar"
+                )}
+              </Button>
+            </Col>
+          </Row>
+        </div>
+      </div>
+
+      <div className="card mt-3">
+        <div className="card-body p-0">
+          <div ref={tableWrapRef} className="table-responsive" style={{ maxHeight: "66vh", overflowY: "auto" }}>
+            <table className="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Fecha")} style={{ width: 130, cursor: "pointer" }}>
+                    Fecha <span className="text-muted ms-1">{sortIcon("Fecha")}</span>
+                  </th>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Empleado")} style={{ cursor: "pointer" }}>
+                    Empleado <span className="text-muted ms-1">{sortIcon("Empleado")}</span>
+                  </th>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Entrada")} style={{ width: 110, cursor: "pointer" }}>
+                    Entrada <span className="text-muted ms-1">{sortIcon("Entrada")}</span>
+                  </th>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Salida")} style={{ width: 110, cursor: "pointer" }}>
+                    Salida <span className="text-muted ms-1">{sortIcon("Salida")}</span>
+                  </th>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Tardia")} style={{ width: 150, cursor: "pointer" }}>
+                    Tardía (horario) <span className="text-muted ms-1">{sortIcon("Tardia")}</span>
+                  </th>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Ausente")} style={{ width: 160, cursor: "pointer" }}>
+                    Ausente (horario) <span className="text-muted ms-1">{sortIcon("Ausente")}</span>
+                  </th>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Estado")} style={{ width: 130, cursor: "pointer" }}>
+                    Estado <span className="text-muted ms-1">{sortIcon("Estado")}</span>
+                  </th>
+                  <th role="button" className="text-nowrap" onClick={() => setSortKey("Observacion")} style={{ minWidth: 260, cursor: "pointer" }}>
+                    Observación <span className="text-muted ms-1">{sortIcon("Observacion")}</span>
+                  </th>
+                  <th className="text-nowrap" style={{ width: 260 }}>
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {!loading && pagedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-4 text-muted">
+                      Sin resultados
+                    </td>
+                  </tr>
+                ) : null}
+
+                {pagedRows.map((row) => {
+                  const esPendiente = row.Estado !== "Confirmada";
+                  return (
+                    <tr key={row.idAsistencia ?? row.id}>
+                      <td className="text-nowrap">{formatFechaDDMMYYYY(row?.Fecha)}</td>
+                      <td style={{ minWidth: 230 }} className="fw-semibold">
+                        {row.EmpleadoNombre}
+                      </td>
+                      <td className="text-nowrap">{formatHora(row?.Entrada ?? row?.IN)}</td>
+                      <td className="text-nowrap">{formatHora(row?.Salida ?? row?.OUT)}</td>
+                      <td className="text-nowrap">{row?.__tardiaCalc === null ? "—" : row?.__tardiaCalc === 1 ? "Sí" : "No"}</td>
+                      <td className="text-nowrap">{row?.__ausenteCalc === null ? "—" : row?.__ausenteCalc === 1 ? "Sí" : "No"}</td>
+                      <td className="text-nowrap">
+                        <EstadoBadge estado={row?.Estado} />
+                      </td>
+                      <td style={{ minWidth: 260 }}>{row?.Observacion ? row.Observacion : ""}</td>
+                      <td>
+                        <div className="d-flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline-secondary" className="dm-btn-outline-red" onClick={() => abrirDetalle(row.idAsistencia)}>
+                            Ver
+                          </Button>
+
+                          {esPendiente ? (
+                            <Button size="sm" variant="primary" onClick={() => cambiarEstado(row.idAsistencia, "Confirmada")}>
+                              Confirmar
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="dark" onClick={() => cambiarEstado(row.idAsistencia, "Pendiente")}>
+                              Quitar confirmación
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-top">
+            <div className="text-muted small">
+              {loading ? "Cargando..." : `${sortedRows.length} asistencia(s) • Página ${page} de ${totalPages} • Mostrando ${PAGE_SIZE} por página`}
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline-secondary"
+                className="dm-btn-outline-red"
+                onClick={() => goToPage(page - 1)}
+                disabled={loading || page <= 1}
+              >
+                Anterior
+              </Button>
+
+              <Form.Select size="sm" value={page} onChange={(e) => goToPage(e.target.value)} disabled={loading} style={{ width: 120, height: 36 }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>
+                    Página {p}
+                  </option>
+                ))}
+              </Form.Select>
+
+              <Button
+                size="sm"
+                variant="outline-secondary"
+                className="dm-btn-outline-red"
+                onClick={() => goToPage(page + 1)}
+                disabled={loading || page >= totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="d-flex align-items-center gap-2">
+                <Spinner size="sm" />
+                <span className="small">Procesando…</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       <Modal show={show} onHide={cerrarDetalle} centered size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>Detalle de asistencia</Modal.Title>
+          <Modal.Title className="fw-bold">Detalle de asistencia</Modal.Title>
         </Modal.Header>
 
         <Modal.Body>
@@ -771,33 +876,39 @@ export default function ValidarAsistencias() {
 
           {detalle ? (
             <>
-              <Row className="mb-2">
-                <Col md={8}>
-                  <div>
-                    <strong>Empleado:</strong> {detalle.EmpleadoNombre}
-                  </div>
-                  <div>
-                    <strong>Fecha:</strong> {formatFechaDDMMYYYY(detalle.Fecha)}
-                  </div>
-                </Col>
-                <Col md={4} className="text-md-end">
-                  <EstadoBadge estado={detalle.Estado} />
-                </Col>
-              </Row>
+              <div className="dm-surface p-3 mb-3">
+                <Row className="mb-2 align-items-start">
+                  <Col md={8}>
+                    <div className="fw-semibold">
+                      <span className="text-muted">Empleado:</span> {detalle.EmpleadoNombre}
+                    </div>
+                    <div className="fw-semibold">
+                      <span className="text-muted">Fecha:</span> {formatFechaDDMMYYYY(detalle.Fecha)}
+                    </div>
+                  </Col>
+                  <Col md={4} className="text-md-end">
+                    <EstadoBadge estado={detalle.Estado} />
+                  </Col>
+                </Row>
 
-              <Row className="mb-3">
-                <Col md={4}>
-                  <strong>Entrada:</strong> {formatHora(detalle.Entrada ?? detalle.IN)}
-                </Col>
-                <Col md={4}>
-                  <strong>Salida:</strong> {formatHora(detalle.Salida ?? detalle.OUT)}
-                </Col>
-                <Col md={4}>
-                  <strong>Tardía/Ausente (horario):</strong>{" "}
-                  {detalle.__tardiaCalc === null ? "—" : detalle.__tardiaCalc === 1 ? "Sí" : "No"} /{" "}
-                  {detalle.__ausenteCalc === null ? "—" : detalle.__ausenteCalc === 1 ? "Sí" : "No"}
-                </Col>
-              </Row>
+                <Row className="mb-0">
+                  <Col md={4}>
+                    <div className="text-muted small">Entrada</div>
+                    <div className="fw-bold">{formatHora(detalle.Entrada ?? detalle.IN)}</div>
+                  </Col>
+                  <Col md={4}>
+                    <div className="text-muted small">Salida</div>
+                    <div className="fw-bold">{formatHora(detalle.Salida ?? detalle.OUT)}</div>
+                  </Col>
+                  <Col md={4}>
+                    <div className="text-muted small">Tardía / Ausente (horario)</div>
+                    <div className="fw-bold">
+                      {detalle.__tardiaCalc === null ? "—" : detalle.__tardiaCalc === 1 ? "Sí" : "No"} /{" "}
+                      {detalle.__ausenteCalc === null ? "—" : detalle.__ausenteCalc === 1 ? "Sí" : "No"}
+                    </div>
+                  </Col>
+                </Row>
+              </div>
 
               <Form.Group className="mb-0">
                 <Form.Label>Observación</Form.Label>
@@ -805,30 +916,27 @@ export default function ValidarAsistencias() {
               </Form.Group>
             </>
           ) : (
-            <div>No hay información para mostrar.</div>
+            <div className="text-muted">No hay información para mostrar.</div>
           )}
         </Modal.Body>
 
         <Modal.Footer>
-          <Button variant="secondary" onClick={cerrarDetalle} disabled={accionLoading}>
+          <Button variant="dark" onClick={cerrarDetalle} disabled={accionLoading}>
             Cerrar
           </Button>
 
           {detalle ? (
             detalle.Estado === "Confirmada" ? (
               <Button
-                variant="outline-warning"
+                variant="outline-secondary"
+                className="dm-btn-outline-red"
                 disabled={accionLoading}
                 onClick={() => cambiarEstado(detalle.idAsistencia, "Pendiente")}
               >
                 Quitar confirmación
               </Button>
             ) : (
-              <Button
-                variant="success"
-                disabled={accionLoading}
-                onClick={() => cambiarEstado(detalle.idAsistencia, "Confirmada")}
-              >
+              <Button variant="primary" disabled={accionLoading} onClick={() => cambiarEstado(detalle.idAsistencia, "Confirmada")}>
                 Confirmar
               </Button>
             )
@@ -838,34 +946,30 @@ export default function ValidarAsistencias() {
 
       <Modal show={showImport} onHide={() => setShowImport(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Importar asistencias desde Excel</Modal.Title>
+          <Modal.Title className="fw-bold">Importar asistencias desde Excel</Modal.Title>
         </Modal.Header>
 
         <Modal.Body>
-          <Form.Group className="mb-3">
-            <Form.Label>Archivo Excel (.xlsx/.xls)</Form.Label>
-            <Form.Control
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-            />
-          </Form.Group>
+          <div className="dm-surface p-3">
+            <Form.Group className="mb-3">
+              <Form.Label>Archivo Excel (.xlsx/.xls)</Form.Label>
+              <Form.Control type="file" accept=".xlsx,.xls" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+            </Form.Group>
 
-          <div className="text-muted" style={{ fontSize: 13 }}>
-            Inserte Excel. Si el empleado no existe en el sistema, la fila será ignorada.
+            <div className="text-muted small">Inserte Excel. Si el empleado no existe en el sistema, la fila será ignorada.</div>
           </div>
         </Modal.Body>
 
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowImport(false)} disabled={importLoading}>
+          <Button variant="dark" onClick={() => setShowImport(false)} disabled={importLoading}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={importarExcel} disabled={importLoading}>
             {importLoading ? (
-              <>
-                <Spinner size="sm" className="me-2" />
+              <span className="d-inline-flex align-items-center gap-2">
+                <Spinner size="sm" />
                 Importando...
-              </>
+              </span>
             ) : (
               "Importar"
             )}

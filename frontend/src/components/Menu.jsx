@@ -1,5 +1,3 @@
-// frontend/src/components/Menu.jsx
-import "bootstrap/dist/css/bootstrap.min.css";
 import { NavLink, useLocation } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Button, Offcanvas } from "react-bootstrap";
@@ -35,11 +33,8 @@ function puedeAcceder(user) {
     puedeVerMantenimientos: esAdmin,
     puedeVerConsultas: esAdmin || esJefatura || esPlanilla,
     puedeVerReportes: esAdmin || esJefatura || esPlanilla,
-
-    // ✅ AJUSTE: Planilla también puede solicitar (igual que Colaborador)
     puedeSolicitar: esColaborador || esPlanilla,
     puedeVerSoloMiInfo: esColaborador || esPlanilla,
-
     puedeVerHorarioEmpleado: esAdmin || esJefatura || esPlanilla,
     puedeVerCatalogosHorario: esAdmin || esJefatura,
     puedeSolicitarVacaciones: esColaborador || esPlanilla,
@@ -58,49 +53,68 @@ function SidebarContent({
   onLogout,
   onNavigate,
   pathname,
+  allowCollapse,
 }) {
-  return (
-    <div className="d-flex flex-column h-100 position-relative bg-white">
-      <button
-        type="button"
-        className="sidebar-handle d-none d-md-inline-flex"
-        onClick={onToggleCollapsed}
-        style={{ color: "var(--dm-red)" }}
-      >
-        {collapsed ? <i className="bi bi-chevron-right"></i> : <i className="bi bi-chevron-left"></i>}
-      </button>
+  const headerPx = collapsed ? "px-2" : "px-3";
+  const navMx = collapsed ? "mx-1" : "mx-2";
+  const navPx = collapsed ? "px-0" : "px-3";
+  const navJustify = collapsed ? "justify-content-center" : "";
+  const navGap = collapsed ? "" : "gap-3";
 
-      <div className="px-3 py-4 sidebar-header" style={{ borderBottom: "2px solid var(--dm-red)" }}>
+  return (
+    <div className="d-flex flex-column h-100 bg-white">
+      <div className={`d-flex align-items-center justify-content-between ${headerPx} py-3 border-bottom`}>
         <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
           <div
-            className="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center fw-bold"
-            style={{ minWidth: "35px", height: "35px" }}
+            className="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
+            style={{ width: 36, height: 36 }}
           >
             {user?.nombreUsuario?.charAt(0).toUpperCase() || "U"}
           </div>
+
           {!collapsed && (
             <div className="d-flex flex-column" style={{ minWidth: 0 }}>
-              <span className="fw-bold text-dark text-truncate" style={{ fontSize: "0.85rem" }}>
+              <div className="fw-bold text-truncate" style={{ fontSize: "0.9rem" }}>
                 {user?.nombreUsuario || "Usuario"}
-              </span>
-              <small className="text-muted text-uppercase fw-bold text-truncate" style={{ fontSize: "0.65rem" }}>
+              </div>
+              <div
+                className="text-muted text-uppercase fw-bold text-truncate"
+                style={{ fontSize: "0.65rem", letterSpacing: "0.10em" }}
+              >
                 {perms.rolTexto || ""}
-              </small>
+              </div>
             </div>
           )}
         </div>
+
+        {allowCollapse && (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-danger dm-btn-outline-red d-none d-md-inline-flex align-items-center justify-content-center"
+            onClick={onToggleCollapsed}
+            style={{ width: 36, height: 36, borderRadius: 999 }}
+            aria-label="Contraer/Expandir"
+          >
+            <i className={collapsed ? "bi bi-chevron-right" : "bi bi-chevron-left"}></i>
+          </button>
+        )}
       </div>
 
-      <div className="flex-grow-1 py-3 overflow-auto custom-scrollbar">
+      <div className="flex-grow-1 py-2 overflow-auto">
         {items.map((it, idx) => {
           if (it.type === "divider") {
             return (
-              <div
-                key={it.key || idx}
-                className={["pt-4 pb-2 text-uppercase fw-bold", collapsed ? "text-center" : "px-4"].join(" ")}
-                style={{ letterSpacing: 1.2, fontSize: "0.65rem", color: "#adb5bd" }}
-              >
-                {collapsed ? "—" : it.label}
+              <div key={it.key || idx} className={collapsed ? "px-2 py-2" : "pt-4 pb-2 px-3"}>
+                {collapsed ? (
+                  <div style={{ height: 1, background: "rgba(11, 11, 12, 0.10)" }} />
+                ) : (
+                  <div
+                    className="text-uppercase fw-bold"
+                    style={{ letterSpacing: "0.12em", fontSize: "0.65rem", color: "rgba(11, 11, 12, 0.45)" }}
+                  >
+                    {it.label}
+                  </div>
+                )}
               </div>
             );
           }
@@ -113,30 +127,29 @@ function SidebarContent({
               className={({ isActive }) =>
                 [
                   "menu-link d-flex align-items-center text-decoration-none",
-                  collapsed ? "justify-content-center mx-2" : "gap-3 px-4 mx-2",
+                  navJustify,
+                  navGap,
+                  navPx,
+                  navMx,
                   "py-2 mb-1",
                   isActive ? "active" : "",
                 ].join(" ")
               }
               title={collapsed ? it.label : undefined}
             >
-              <span className="menu-icon">
+              <span className="d-inline-flex align-items-center justify-content-center" style={{ width: 26 }}>
                 <i className={it.icon}></i>
               </span>
-              {!collapsed && (
-                <span className="menu-label" style={{ fontSize: "0.9rem" }}>
-                  {it.label}
-                </span>
-              )}
+              {!collapsed && <span style={{ fontSize: "0.92rem" }}>{it.label}</span>}
             </NavLink>
           );
         })}
       </div>
 
-      <div className="p-3 border-top mt-auto bg-light">
+      <div className={`border-top bg-body-tertiary ${collapsed ? "p-2" : "p-3"}`}>
         <Button
           variant="outline-dark"
-          className="w-100 d-flex align-items-center justify-content-center gap-2 fw-bold mb-2"
+          className="w-100 d-flex align-items-center justify-content-center gap-2 fw-bold"
           onClick={onLogout}
         >
           <i className="bi bi-box-arrow-left"></i>
@@ -144,9 +157,9 @@ function SidebarContent({
         </Button>
 
         {!collapsed && pathname && (
-          <div className="text-center opacity-75">
-            <small className="text-muted fw-bold" style={{ fontSize: "0.55rem" }}>
-              RUTA ACTUAL: <span style={{ color: "var(--dm-red)" }}>{pathname.toUpperCase()}</span>
+          <div className="text-center mt-2">
+            <small className="text-muted fw-bold" style={{ fontSize: "0.6rem", letterSpacing: "0.08em" }}>
+              RUTA: <span className="text-marenco-red">{pathname.toUpperCase()}</span>
             </small>
           </div>
         )}
@@ -155,9 +168,17 @@ function SidebarContent({
   );
 }
 
-export default function Menu({ user, onLogout }) {
+export default function Menu({ user, onLogout, collapsed: collapsedProp, onToggleCollapsed: onToggleCollapsedProp }) {
   const perms = useMemo(() => puedeAcceder(user), [user]);
-  const [collapsed, setCollapsed] = useState(false);
+
+  const [collapsedInternal, setCollapsedInternal] = useState(false);
+  const collapsed = typeof collapsedProp === "boolean" ? collapsedProp : collapsedInternal;
+
+  const toggleCollapsed =
+    typeof onToggleCollapsedProp === "function"
+      ? onToggleCollapsedProp
+      : () => setCollapsedInternal((v) => !v);
+
   const [showMobile, setShowMobile] = useState(false);
   const location = useLocation();
 
@@ -198,7 +219,6 @@ export default function Menu({ user, onLogout }) {
     }
   }
 
-  // Mostrar "Planilla" a Admin/Jefatura; y a Planilla/Colaborador solo el acceso a Incapacidades
   if (perms.puedeCalcularPagos) {
     items.push({ type: "divider", key: "div-planilla", label: "Planilla" });
     items.push({ to: "/planilla/calcular-salarios", label: "Calcular salarios", icon: "bi bi-cash-coin" });
@@ -225,7 +245,6 @@ export default function Menu({ user, onLogout }) {
     items.push({ to: "/vacaciones", label: "Vacaciones", icon: "bi bi-sun" });
   }
 
-  // ✅ Ahora Planilla también entra aquí porque perms.puedeSolicitar incluye esPlanilla
   if (perms.puedeSolicitar) {
     items.push({ type: "divider", key: "div-solic", label: "Mis solicitudes" });
     items.push({ to: "/solicitudes/permisos", label: "Solicitar permiso", icon: "bi bi-file-earmark-medical" });
@@ -248,28 +267,34 @@ export default function Menu({ user, onLogout }) {
   return (
     <>
       <div className="d-md-none d-flex align-items-center justify-content-between px-3 py-2 border-bottom bg-white">
-        <Button variant="outline-dark" onClick={() => setShowMobile(true)}>
+        <Button
+          variant="outline-dark"
+          className="d-inline-flex align-items-center gap-2"
+          onClick={() => setShowMobile(true)}
+        >
           <i className="bi bi-list"></i> Menú
         </Button>
+
         <div className="text-end" style={{ minWidth: 0 }}>
           <div className="fw-semibold text-truncate">{user?.nombreUsuario || "Usuario"}</div>
           <small className="text-muted text-truncate">{perms.rolTexto || ""}</small>
         </div>
       </div>
 
-      <aside className={`sidebar d-none d-md-flex ${collapsed ? "collapsed" : ""}`}>
+      <div className="d-none d-md-flex flex-column h-100">
         <SidebarContent
           user={user}
           perms={perms}
           items={items}
           collapsed={collapsed}
-          onToggleCollapsed={() => setCollapsed((v) => !v)}
+          allowCollapse
+          onToggleCollapsed={toggleCollapsed}
           onLogout={handleLogout}
           pathname={location.pathname}
         />
-      </aside>
+      </div>
 
-      <Offcanvas show={showMobile} onHide={() => setShowMobile(false)} placement="start">
+      <Offcanvas show={showMobile} onHide={() => setShowMobile(false)} placement="start" style={{ width: 280 }}>
         <Offcanvas.Header closeButton className="border-bottom">
           <Offcanvas.Title className="fw-bold">Menú Marenco</Offcanvas.Title>
         </Offcanvas.Header>
@@ -279,6 +304,7 @@ export default function Menu({ user, onLogout }) {
             perms={perms}
             items={items}
             collapsed={false}
+            allowCollapse={false}
             onLogout={handleLogout}
             onNavigate={() => setShowMobile(false)}
             pathname={location.pathname}

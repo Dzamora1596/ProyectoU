@@ -1,7 +1,6 @@
-// frontend/src/pages/permisos/Permisos.jsx
+// src/pages/permisos/Permisos.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Col, Form, Modal, Row, Spinner, Badge, Alert } from "react-bootstrap";
-import { DataGrid } from "@mui/x-data-grid";
+import { Alert, Badge, Button, Col, Form, Modal, Row, Spinner } from "react-bootstrap";
 import {
   aprobarPermiso,
   crearPermiso,
@@ -80,10 +79,15 @@ function normalizeEmpleadoRow(r) {
 
 function EstadoBadge({ estadoId }) {
   const id = Number(estadoId || 0);
-  if (id === 2) return <Badge style={{ backgroundColor: "var(--dm-red)", color: "white" }}>Aprobado</Badge>;
-  if (id === 3) return <Badge bg="danger">Rechazado</Badge>;
+  if (id === 2)
+    return (
+      <Badge className="dm-pill bg-marenco-red text-white">
+        Aprobado
+      </Badge>
+    );
+  if (id === 3) return <Badge className="dm-pill bg-danger text-white">Rechazado</Badge>;
   return (
-    <Badge bg="warning" text="dark">
+    <Badge className="dm-pill bg-warning text-dark">
       Pendiente
     </Badge>
   );
@@ -120,8 +124,7 @@ function getAuthContext() {
 
   if (payload && typeof payload === "object") {
     const role = payload?.rolNombre ?? payload?.rol ?? payload?.role ?? payload?.Rol ?? "";
-    const empleadoId =
-      payload?.empleadoId ?? payload?.Empleado_idEmpleado ?? payload?.idEmpleado ?? payload?.EmpleadoId ?? null;
+    const empleadoId = payload?.empleadoId ?? payload?.Empleado_idEmpleado ?? payload?.idEmpleado ?? payload?.EmpleadoId ?? null;
     const nombre = payload?.nombre ?? payload?.Nombre ?? payload?.NombreCompleto ?? payload?.nombreUsuario ?? "";
 
     const roleStr = String(role || "").trim();
@@ -143,11 +146,7 @@ export default function Permisos() {
 
   const esAdmin = roleLower === "admin";
   const esColaborador = roleLower === "colaborador";
-
-  // ✅ NUEVO: planilla (mismo comportamiento que colaborador)
   const esPlanilla = roleLower === "personal de planilla" || roleLower.includes("planilla");
-
-  // ✅ NUEVO: roles self-only
   const esSelfOnly = esColaborador || esPlanilla;
 
   const esAdminOJefatura = roleLower === "admin" || roleLower === "jefatura";
@@ -177,9 +176,17 @@ export default function Permisos() {
   const [errorMsg, setErrorMsg] = useState("");
   const [okMsg, setOkMsg] = useState("");
 
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 31 });
-
   const initDoneRef = useRef(false);
+
+  const PAGE_SIZE = 31;
+  const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState("Fecha_Solicitud");
+  const [sortDir, setSortDir] = useState("desc");
+
+  const tableWrapRef = useRef(null);
+  const resetTableScroll = useCallback(() => {
+    if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
+  }, []);
 
   const limpiarMensajes = useCallback(() => {
     setErrorMsg("");
@@ -193,7 +200,6 @@ export default function Permisos() {
   const abrirCrear = useCallback(() => {
     limpiarMensajes();
 
-    // ✅ Colaborador/Planilla: empleado fijo
     if (esSelfOnly) {
       const id = miEmpleado?.idEmpleado ? String(miEmpleado.idEmpleado) : "";
       setCEmpleadoId(id);
@@ -209,7 +215,6 @@ export default function Permisos() {
   }, [esSelfOnly, miEmpleado?.idEmpleado, fEmpleadoId, limpiarMensajes]);
 
   const cargarMiEmpleado = useCallback(async () => {
-    // ✅ Colaborador/Planilla: cargar empleado "me"
     if (!esSelfOnly) return;
 
     try {
@@ -223,8 +228,7 @@ export default function Permisos() {
         return;
       }
 
-      const nombre =
-        emp?.nombreCompleto || emp?.nombre || (emp?.idEmpleado ? `Empleado ${emp.idEmpleado}` : "Empleado");
+      const nombre = emp?.nombreCompleto || emp?.nombre || (emp?.idEmpleado ? `Empleado ${emp.idEmpleado}` : "Empleado");
       const row = { idEmpleado: Number(emp.idEmpleado), nombre: String(nombre) };
 
       setMiEmpleado(emp);
@@ -243,7 +247,6 @@ export default function Permisos() {
 
   const cargarEmpleados = useCallback(async () => {
     try {
-      // ✅ Colaborador/Planilla: no listar todos, solo su empleado
       if (esSelfOnly) {
         await cargarMiEmpleado();
         return;
@@ -285,21 +288,20 @@ export default function Permisos() {
         if (desdeEff) params.desde = desdeEff;
         if (hastaEff) params.hasta = hastaEff;
 
-        // ✅ Colaborador/Planilla: NO mandar empleadoId (backend aplica scope)
         if (!esSelfOnly) {
           const empleadoIdEff = overrides.empleadoId ?? fEmpleadoId;
           if (empleadoIdEff) params.empleadoId = empleadoIdEff;
         }
 
         const lista = await listarPermisos(params);
-
         const mapped = (lista || []).map((r) => ({
           ...r,
           id: r?.idPermisos ?? r?.id ?? r?.Id ?? null,
         }));
 
-        setPaginationModel((prev) => ({ ...prev, page: 0 }));
         setRows(mapped);
+        setPage(1);
+        resetTableScroll();
 
         if (mapped.length === 0) setOkMsg("No se encontraron permisos con los filtros seleccionados.");
       } catch (err) {
@@ -308,7 +310,7 @@ export default function Permisos() {
         setLoading(false);
       }
     },
-    [esSelfOnly, fEmpleadoId, fEstadoId, fFechaDesde, fFechaHasta, limpiarMensajes]
+    [esSelfOnly, fEmpleadoId, fEstadoId, fFechaDesde, fFechaHasta, limpiarMensajes, resetTableScroll]
   );
 
   const cargar = useCallback(async () => {
@@ -338,7 +340,6 @@ export default function Permisos() {
     const iniLocal = String(cInicio || "").trim();
     const finLocal = String(cFin || "").trim();
 
-    // ✅ Colaborador/Planilla: empleado fijo desde miEmpleado
     const emp = esSelfOnly ? Number(miEmpleado?.idEmpleado || 0) : Number(cEmpleadoId || 0);
 
     if (!emp || !tipo || !desc || !iniLocal || !finLocal) {
@@ -372,11 +373,8 @@ export default function Permisos() {
       const data = await crearPermiso(body);
 
       const traslapes = data?.warnings?.traslapes;
-      if (Array.isArray(traslapes) && traslapes.length > 0) {
-        setOkMsg("Permiso creado. Hay traslape con otros permisos.");
-      } else {
-        setOkMsg("Permiso creado correctamente");
-      }
+      if (Array.isArray(traslapes) && traslapes.length > 0) setOkMsg("Permiso creado. Hay traslape con otros permisos.");
+      else setOkMsg("Permiso creado correctamente");
 
       setShowCrear(false);
       await cargar();
@@ -453,261 +451,412 @@ export default function Permisos() {
     await cargarConOverrides({ desde: r.desde, hasta: r.hasta });
   }, [cargarConOverrides]);
 
-  const columns = useMemo(() => {
-    const cols = [];
-
-    if (esAdmin) {
-      cols.push({ field: "idPermisos", headerName: "ID", flex: 0.6, minWidth: 90 });
-    }
-
-    // ✅ si es Admin y NO es self-only (colaborador/planilla), mostrar ID empleado
-    if (esAdmin && !esSelfOnly) {
-      cols.push({ field: "Empleado_idEmpleado", headerName: "Empleado ID", flex: 1, minWidth: 130 });
-    }
-
-    cols.push(
-      {
-        field: "Catalogo_Estado_idCatalogo_Estado",
-        headerName: "Estado",
-        flex: 1,
-        minWidth: 140,
-        renderCell: (p) => <EstadoBadge estadoId={p?.row?.Catalogo_Estado_idCatalogo_Estado} />,
-      },
-      {
-        field: "Tipo_Permiso_idTipo_Permiso",
-        headerName: "Tipo",
-        flex: 1.2,
-        minWidth: 160,
-        renderCell: (p) => {
-          const id = Number(p?.row?.Tipo_Permiso_idTipo_Permiso || 0);
-          const t = tipos.find((x) => Number(x.id) === id);
-          return t?.descripcion || String(id || "");
-        },
-      },
-      { field: "Descripcion", headerName: "Descripción", flex: 2.2, minWidth: 260 },
-      {
-        field: "Fecha_Solicitud",
-        headerName: "Solicitud",
-        flex: 1.3,
-        minWidth: 180,
-        renderCell: (p) => formatFechaHora(p?.row?.Fecha_Solicitud),
-      },
-      {
-        field: "Fecha_Inicio",
-        headerName: "Inicio",
-        flex: 1.3,
-        minWidth: 180,
-        renderCell: (p) => formatFechaHora(p?.row?.Fecha_Inicio),
-      },
-      {
-        field: "Fecha_Fin",
-        headerName: "Fin",
-        flex: 1.3,
-        minWidth: 180,
-        renderCell: (p) => formatFechaHora(p?.row?.Fecha_Fin),
-      }
-    );
-
-    if (esAdminOJefatura) {
-      cols.push({
-        field: "acciones",
-        headerName: "Acciones",
-        sortable: false,
-        filterable: false,
-        minWidth: 320,
-        renderCell: (p) => {
-          const row = p?.row;
-          if (!row) return null;
-
-          const id = row?.idPermisos ?? row?.id ?? null;
-          const estado = Number(row?.Catalogo_Estado_idCatalogo_Estado || 0);
-          const activo = !!row?.Activo;
-
-          const esPendiente = estado === 1;
-          const puedeAccionar = activo && esPendiente;
-
-          return (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Button size="sm" variant="success" disabled={!puedeAccionar || accionLoading} onClick={() => aprobar(id)}>
-                Aprobar
-              </Button>
-              <Button size="sm" variant="danger" disabled={!puedeAccionar || accionLoading} onClick={() => rechazar(id)}>
-                Rechazar
-              </Button>
-              <Button
-                size="sm"
-                variant="outline-secondary"
-                disabled={!activo || accionLoading}
-                onClick={() => desactivar(id)}
-              >
-                Desactivar
-              </Button>
-            </div>
-          );
-        },
-      });
-    }
-
-    return cols;
-  }, [tipos, aprobar, rechazar, desactivar, accionLoading, esSelfOnly, esAdminOJefatura, esAdmin]);
-
-  // ✅ label para colaborador/planilla
   const empleadoLabelSelf = useMemo(() => {
     const nombre = miEmpleado?.nombreCompleto || miEmpleado?.nombre || "";
     if (nombre) return nombre;
     return "No asociado";
   }, [miEmpleado]);
 
+  const toggleSort = useCallback(
+    (key) => {
+      setPage(1);
+      resetTableScroll();
+
+      setSortKey((prevKey) => {
+        if (prevKey !== key) {
+          setSortDir("asc");
+          return key;
+        }
+        setSortDir((prevDir) => (prevDir === "asc" ? "desc" : "asc"));
+        return prevKey;
+      });
+    },
+    [resetTableScroll]
+  );
+
+  const sortIcon = useCallback(
+    (key) => {
+      if (sortKey !== key) return "↕";
+      return sortDir === "asc" ? "↑" : "↓";
+    },
+    [sortKey, sortDir]
+  );
+
+  const sortedRows = useMemo(() => {
+    const list = Array.isArray(rows) ? rows.slice() : [];
+
+    const asNumber = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const asTime = (v) => {
+      if (!v) return null;
+      const t = Date.parse(String(v).replace(" ", "T"));
+      return Number.isFinite(t) ? t : null;
+    };
+
+    const getter = (r) => {
+      if (sortKey === "Estado") return asNumber(r?.Catalogo_Estado_idCatalogo_Estado) ?? 0;
+      if (sortKey === "Tipo") return String(r?.Tipo_Permiso_idTipo_Permiso ?? "").toLowerCase();
+      if (sortKey === "Descripcion") return String(r?.Descripcion ?? "").toLowerCase();
+      if (sortKey === "Fecha_Solicitud") return asTime(r?.Fecha_Solicitud) ?? 0;
+      if (sortKey === "Fecha_Inicio") return asTime(r?.Fecha_Inicio) ?? 0;
+      if (sortKey === "Fecha_Fin") return asTime(r?.Fecha_Fin) ?? 0;
+      if (sortKey === "Empleado") return asNumber(r?.Empleado_idEmpleado) ?? 0;
+      if (sortKey === "ID") return asNumber(r?.idPermisos ?? r?.id) ?? 0;
+      return 0;
+    };
+
+    list.sort((a, b) => {
+      const va = getter(a);
+      const vb = getter(b);
+
+      if (typeof va === "number" && typeof vb === "number") return sortDir === "asc" ? va - vb : vb - va;
+
+      const sa = String(va ?? "");
+      const sb = String(vb ?? "");
+      return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
+    });
+
+    return list;
+  }, [rows, sortKey, sortDir]);
+
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((sortedRows.length || 0) / PAGE_SIZE);
+    return n > 0 ? n : 1;
+  }, [sortedRows.length]);
+
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return sortedRows.slice(start, start + PAGE_SIZE);
+  }, [sortedRows, page]);
+
+  const goToPage = useCallback(
+    (p) => {
+      const next = Math.max(1, Math.min(totalPages, Number(p || 1)));
+      setPage(next);
+      resetTableScroll();
+    },
+    [totalPages, resetTableScroll]
+  );
+
+  const colSpanEmpty = (esAdmin ? 1 : 0) + (esAdmin && !esSelfOnly ? 1 : 0) + 6 + (esAdminOJefatura ? 1 : 0);
+
   return (
-    <div className="p-3">
-      <Row className="mb-3 align-items-center">
-        <Col>
-          <h4 className="mb-0">Permisos</h4>
-        </Col>
-        <Col className="text-end d-flex justify-content-end gap-2">
-          <Button variant="outline-secondary" onClick={aplicarMesActual} disabled={loading}>
-            Mes actual
-          </Button>
-          <Button variant="primary" onClick={abrirCrear}>
-            Nueva solicitud
-          </Button>
-        </Col>
-      </Row>
-
-      {errorMsg ? <Alert variant="danger">{errorMsg}</Alert> : null}
-      {okMsg ? <Alert variant="success">{okMsg}</Alert> : null}
-
-      <div className="p-3 mb-3 border rounded bg-light">
-        <Row className="g-2 align-items-end">
-          {!esSelfOnly ? (
-            <Col xs={12} md={4}>
-              <Form.Label>Empleado</Form.Label>
-              <Form.Select value={fEmpleadoId} onChange={(e) => setFEmpleadoId(e.target.value)}>
-                <option value="">Todos</option>
-                {empleados.map((emp) => (
-                  <option key={emp.idEmpleado} value={emp.idEmpleado}>
-                    {esAdmin ? `${emp.nombre} (ID: ${emp.idEmpleado})` : emp.nombre}
-                  </option>
-                ))}
-              </Form.Select>
+    <div className="container-fluid p-0">
+      <div className="card">
+        <div className="card-body">
+          <Row className="g-2 align-items-center">
+            <Col xs={12} md>
+              <h4 className="mb-0 text-marenco-red">Permisos</h4>
+              <div className="text-muted small">Gestión de permisos.</div>
             </Col>
-          ) : (
-            <Col xs={12} md={4}>
-              <Form.Label>Empleado</Form.Label>
-              <Form.Control value={empleadoLabelSelf} disabled />
+            <Col xs={12} md="auto" className="d-grid d-md-block">
+              <div className="d-flex flex-column flex-md-row gap-2">
+                <Button variant="outline-secondary" className="dm-btn-outline-red" onClick={aplicarMesActual} disabled={loading}>
+                  Mes actual
+                </Button>
+                <Button variant="primary" onClick={abrirCrear}>
+                  Nueva solicitud
+                </Button>
+              </div>
             </Col>
-          )}
-
-          <Col xs={12} md={3}>
-            <Form.Label>Estado</Form.Label>
-            <Form.Select value={fEstadoId} onChange={(e) => setFEstadoId(e.target.value)}>
-              <option value="">Todos</option>
-              <option value="1">Pendiente</option>
-              <option value="2">Aprobado</option>
-              <option value="3">Rechazado</option>
-            </Form.Select>
-          </Col>
-
-          <Col xs={6} md={2}>
-            <Form.Label>Desde (Solicitud)</Form.Label>
-            <Form.Control type="date" value={fFechaDesde} onChange={(e) => setFFechaDesde(e.target.value)} />
-          </Col>
-
-          <Col xs={6} md={2}>
-            <Form.Label>Hasta (Solicitud)</Form.Label>
-            <Form.Control type="date" value={fFechaHasta} onChange={(e) => setFFechaHasta(e.target.value)} />
-          </Col>
-
-          <Col xs={12} md="auto" className="mt-2 mt-md-0 d-flex gap-2">
-            <Button onClick={cargar} disabled={loading}>
-              {loading ? "Cargando..." : "Buscar"}
-            </Button>
-          </Col>
-        </Row>
+          </Row>
+        </div>
       </div>
 
-      <div style={{ height: 560, width: "100%" }}>
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          loading={loading}
-          pageSizeOptions={[31, 62, 93]}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          disableRowSelectionOnClick
-          getRowId={(row) => row?.idPermisos ?? row?.id}
-        />
-      </div>
+      {(errorMsg || okMsg) && (
+        <div className="mt-3">
+          {errorMsg ? (
+            <Alert variant="danger" className="dm-alert-accent mb-2">
+              {errorMsg}
+            </Alert>
+          ) : null}
+          {okMsg ? (
+            <Alert variant="success" className="dm-alert-accent mb-0">
+              {okMsg}
+            </Alert>
+          ) : null}
+        </div>
+      )}
 
-      <Modal show={showCrear} onHide={cerrarCrear} centered size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Nueva solicitud de permiso</Modal.Title>
-        </Modal.Header>
-
-        <Modal.Body>
-          <Row className="g-3">
-            <Col xs={12} md={6}>
-              <Form.Label>Empleado</Form.Label>
-
-              {esSelfOnly ? (
-                <Form.Control value={empleadoLabelSelf} disabled />
-              ) : (
-                <Form.Select value={cEmpleadoId} onChange={(e) => setCEmpleadoId(e.target.value)}>
-                  <option value="">Seleccione...</option>
+      <div className="card mt-3">
+        <div className="card-body">
+          <Row className="g-2 align-items-end">
+            {!esSelfOnly ? (
+              <Col xs={12} md={4}>
+                <Form.Label>Empleado</Form.Label>
+                <Form.Select value={fEmpleadoId} onChange={(e) => setFEmpleadoId(e.target.value)}>
+                  <option value="">Todos</option>
                   {empleados.map((emp) => (
                     <option key={emp.idEmpleado} value={emp.idEmpleado}>
                       {esAdmin ? `${emp.nombre} (ID: ${emp.idEmpleado})` : emp.nombre}
                     </option>
                   ))}
                 </Form.Select>
-              )}
-            </Col>
+              </Col>
+            ) : (
+              <Col xs={12} md={4}>
+                <Form.Label>Empleado</Form.Label>
+                <Form.Control value={empleadoLabelSelf} disabled />
+              </Col>
+            )}
 
-            <Col xs={12} md={6}>
-              <Form.Label>Tipo de permiso</Form.Label>
-              <Form.Select value={cTipoId} onChange={(e) => setCTipoId(e.target.value)}>
-                <option value="">Seleccione...</option>
-                {tipos
-                  .filter((t) => Number(t.activo ?? 1) === 1)
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.descripcion}
-                    </option>
-                  ))}
+            <Col xs={12} md={3}>
+              <Form.Label>Estado</Form.Label>
+              <Form.Select value={fEstadoId} onChange={(e) => setFEstadoId(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="1">Pendiente</option>
+                <option value="2">Aprobado</option>
+                <option value="3">Rechazado</option>
               </Form.Select>
             </Col>
 
-            <Col xs={12}>
-              <Form.Label>Descripción</Form.Label>
-              <Form.Control
-                value={cDescripcion}
-                onChange={(e) => setCDescripcion(e.target.value)}
-                placeholder="Ej: Permiso por cita médica"
-              />
+            <Col xs={6} md={2}>
+              <Form.Label>Desde (Solicitud)</Form.Label>
+              <Form.Control type="date" value={fFechaDesde} onChange={(e) => setFFechaDesde(e.target.value)} />
             </Col>
 
-            <Col xs={12} md={6}>
-              <Form.Label>Fecha inicio</Form.Label>
-              <Form.Control type="datetime-local" value={cInicio} onChange={(e) => setCInicio(e.target.value)} />
+            <Col xs={6} md={2}>
+              <Form.Label>Hasta (Solicitud)</Form.Label>
+              <Form.Control type="date" value={fFechaHasta} onChange={(e) => setFFechaHasta(e.target.value)} />
             </Col>
 
-            <Col xs={12} md={6}>
-              <Form.Label>Fecha fin</Form.Label>
-              <Form.Control type="datetime-local" value={cFin} onChange={(e) => setCFin(e.target.value)} />
+            <Col xs={12} md="auto" className="d-grid">
+              <Button variant="primary" onClick={cargar} disabled={loading}>
+                {loading ? (
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <Spinner size="sm" />
+                    Cargando…
+                  </span>
+                ) : (
+                  "Buscar"
+                )}
+              </Button>
             </Col>
           </Row>
+        </div>
+      </div>
+
+      <div className="card mt-3">
+        <div className="card-body p-0">
+          <div ref={tableWrapRef} className="table-responsive" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+            <table className="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  {esAdmin ? (
+                    <th style={{ width: 90 }} role="button" className="text-nowrap" onClick={() => toggleSort("ID")}>
+                      ID <span className="text-muted ms-1">{sortIcon("ID")}</span>
+                    </th>
+                  ) : null}
+
+                  {esAdmin && !esSelfOnly ? (
+                    <th style={{ width: 130 }} role="button" className="text-nowrap" onClick={() => toggleSort("Empleado")}>
+                      Empleado ID <span className="text-muted ms-1">{sortIcon("Empleado")}</span>
+                    </th>
+                  ) : null}
+
+                  <th style={{ width: 140 }} role="button" className="text-nowrap" onClick={() => toggleSort("Estado")}>
+                    Estado <span className="text-muted ms-1">{sortIcon("Estado")}</span>
+                  </th>
+
+                  <th style={{ width: 170 }} role="button" className="text-nowrap" onClick={() => toggleSort("Tipo")}>
+                    Tipo <span className="text-muted ms-1">{sortIcon("Tipo")}</span>
+                  </th>
+
+                  <th role="button" className="text-nowrap" onClick={() => toggleSort("Descripcion")}>
+                    Descripción <span className="text-muted ms-1">{sortIcon("Descripcion")}</span>
+                  </th>
+
+                  <th style={{ width: 180 }} role="button" className="text-nowrap" onClick={() => toggleSort("Fecha_Solicitud")}>
+                    Solicitud <span className="text-muted ms-1">{sortIcon("Fecha_Solicitud")}</span>
+                  </th>
+
+                  <th style={{ width: 180 }} role="button" className="text-nowrap" onClick={() => toggleSort("Fecha_Inicio")}>
+                    Inicio <span className="text-muted ms-1">{sortIcon("Fecha_Inicio")}</span>
+                  </th>
+
+                  <th style={{ width: 180 }} role="button" className="text-nowrap" onClick={() => toggleSort("Fecha_Fin")}>
+                    Fin <span className="text-muted ms-1">{sortIcon("Fecha_Fin")}</span>
+                  </th>
+
+                  {esAdminOJefatura ? (
+                    <th style={{ width: 320 }} className="text-nowrap">
+                      Acciones
+                    </th>
+                  ) : null}
+                </tr>
+              </thead>
+
+              <tbody>
+                {!loading && pagedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={colSpanEmpty} className="text-center py-4 text-muted">
+                      Sin resultados
+                    </td>
+                  </tr>
+                ) : null}
+
+                {pagedRows.map((row) => {
+                  const id = row?.idPermisos ?? row?.id ?? null;
+                  const estado = Number(row?.Catalogo_Estado_idCatalogo_Estado || 0);
+                  const activoRow = !!row?.Activo;
+
+                  const esPendiente = estado === 1;
+                  const puedeAccionar = activoRow && esPendiente;
+
+                  const tipoId = Number(row?.Tipo_Permiso_idTipo_Permiso || 0);
+                  const tipo = tipos.find((x) => Number(x.id) === tipoId);
+                  const tipoTxt = tipo?.descripcion || String(tipoId || "");
+
+                  return (
+                    <tr key={id ?? `${row?.Empleado_idEmpleado}-${row?.Fecha_Solicitud}-${row?.Fecha_Inicio}`}>
+                      {esAdmin ? <td className="text-nowrap">{row?.idPermisos}</td> : null}
+                      {esAdmin && !esSelfOnly ? <td className="text-nowrap">{row?.Empleado_idEmpleado}</td> : null}
+
+                      <td className="text-nowrap">
+                        <EstadoBadge estadoId={row?.Catalogo_Estado_idCatalogo_Estado} />
+                      </td>
+
+                      <td className="text-nowrap">{tipoTxt}</td>
+
+                      <td style={{ minWidth: 260 }}>{row?.Descripcion}</td>
+
+                      <td className="text-nowrap">{formatFechaHora(row?.Fecha_Solicitud)}</td>
+                      <td className="text-nowrap">{formatFechaHora(row?.Fecha_Inicio)}</td>
+                      <td className="text-nowrap">{formatFechaHora(row?.Fecha_Fin)}</td>
+
+                      {esAdminOJefatura ? (
+                        <td>
+                          <div className="d-flex gap-2 flex-wrap">
+                            <Button size="sm" variant="primary" disabled={!puedeAccionar || accionLoading} onClick={() => aprobar(id)}>
+                              Aprobar
+                            </Button>
+
+                            <Button size="sm" variant="danger" disabled={!puedeAccionar || accionLoading} onClick={() => rechazar(id)}>
+                              Rechazar
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline-secondary"
+                              className="dm-btn-outline-red"
+                              disabled={!activoRow || accionLoading}
+                              onClick={() => desactivar(id)}
+                            >
+                              Desactivar
+                            </Button>
+                          </div>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-top">
+            <div className="text-muted small">
+              {loading ? "Cargando..." : `${sortedRows.length} permiso(s) • Página ${page} de ${totalPages} • Mostrando ${PAGE_SIZE} por página`}
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <Button size="sm" variant="outline-secondary" className="dm-btn-outline-red" onClick={() => goToPage(page - 1)} disabled={loading || page <= 1}>
+                Anterior
+              </Button>
+
+              <Form.Select size="sm" value={page} onChange={(e) => goToPage(e.target.value)} disabled={loading} style={{ width: 130, height: 36 }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>
+                    Página {p}
+                  </option>
+                ))}
+              </Form.Select>
+
+              <Button size="sm" variant="outline-secondary" className="dm-btn-outline-red" onClick={() => goToPage(page + 1)} disabled={loading || page >= totalPages}>
+                Siguiente
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="d-flex align-items-center gap-2">
+                <Spinner size="sm" />
+                <span className="small">Procesando…</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <Modal show={showCrear} onHide={cerrarCrear} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Nueva solicitud de permiso</Modal.Title>
+        </Modal.Header>
+
+        <Modal.Body>
+          <div className="dm-surface p-3">
+            <Row className="g-3">
+              <Col xs={12} md={6}>
+                <Form.Label>Empleado</Form.Label>
+
+                {esSelfOnly ? (
+                  <Form.Control value={empleadoLabelSelf} disabled />
+                ) : (
+                  <Form.Select value={cEmpleadoId} onChange={(e) => setCEmpleadoId(e.target.value)}>
+                    <option value="">Seleccione...</option>
+                    {empleados.map((emp) => (
+                      <option key={emp.idEmpleado} value={emp.idEmpleado}>
+                        {esAdmin ? `${emp.nombre} (ID: ${emp.idEmpleado})` : emp.nombre}
+                      </option>
+                    ))}
+                  </Form.Select>
+                )}
+              </Col>
+
+              <Col xs={12} md={6}>
+                <Form.Label>Tipo de permiso</Form.Label>
+                <Form.Select value={cTipoId} onChange={(e) => setCTipoId(e.target.value)}>
+                  <option value="">Seleccione...</option>
+                  {tipos
+                    .filter((t) => Number(t.activo ?? 1) === 1)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.descripcion}
+                      </option>
+                    ))}
+                </Form.Select>
+              </Col>
+
+              <Col xs={12}>
+                <Form.Label>Descripción</Form.Label>
+                <Form.Control value={cDescripcion} onChange={(e) => setCDescripcion(e.target.value)} placeholder="Ej: Permiso por cita médica" />
+              </Col>
+
+              <Col xs={12} md={6}>
+                <Form.Label>Fecha inicio</Form.Label>
+                <Form.Control type="datetime-local" value={cInicio} onChange={(e) => setCInicio(e.target.value)} />
+              </Col>
+
+              <Col xs={12} md={6}>
+                <Form.Label>Fecha fin</Form.Label>
+                <Form.Control type="datetime-local" value={cFin} onChange={(e) => setCFin(e.target.value)} />
+              </Col>
+            </Row>
+          </div>
         </Modal.Body>
 
         <Modal.Footer>
-          <Button variant="secondary" onClick={cerrarCrear} disabled={accionLoading}>
+          <Button variant="dark" onClick={cerrarCrear} disabled={accionLoading}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={crearPermisoFn} disabled={accionLoading}>
             {accionLoading ? (
-              <>
-                <Spinner size="sm" className="me-2" />
+              <span className="d-inline-flex align-items-center gap-2">
+                <Spinner size="sm" />
                 Guardando...
-              </>
+              </span>
             ) : (
               "Guardar"
             )}

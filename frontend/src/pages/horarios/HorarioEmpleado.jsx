@@ -1,6 +1,6 @@
 // src/pages/horarios/HorarioEmpleado.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, Card, Col, Form, Row, Spinner, Table } from "react-bootstrap";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Button, Col, Form, Row, Spinner, Table } from "react-bootstrap";
 import {
   obtenerHorarioEmpleado,
   obtenerDetalleHorarioEmpleado,
@@ -8,9 +8,7 @@ import {
   asignarCatalogoHorarioEmpleado,
   obtenerDetalleCatalogoHorario,
 } from "../../services/horariosService";
-
 import { listarEmpleados } from "../../services/empleadosService";
-
 
 function horaParaInput(v) {
   const s = String(v || "").trim();
@@ -72,7 +70,9 @@ function getEmpleadoNombre(e) {
 
   if (full) return full;
 
-  const parts = [nombre, ap1, ap2].map((x) => String(x || "").trim()).filter(Boolean);
+  const parts = [nombre, ap1, ap2]
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
 
   if (parts.length) return parts.join(" ");
 
@@ -89,21 +89,34 @@ function extractApiData(r) {
 export default function HorarioEmpleado() {
   const [empleados, setEmpleados] = useState([]);
   const [idEmpleado, setIdEmpleado] = useState("");
+
   const [catalogos, setCatalogos] = useState([]);
   const [catalogoSeleccionado, setCatalogoSeleccionado] = useState("");
+
   const [horarioAsignado, setHorarioAsignado] = useState(null);
   const [detalleAsignado, setDetalleAsignado] = useState(buildDetalleCompleto([]));
   const [detalleCatalogo, setDetalleCatalogo] = useState(buildDetalleCompleto([]));
+
   const [cargando, setCargando] = useState(false);
   const [cargandoEmpleados, setCargandoEmpleados] = useState(false);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(false);
   const [cargandoDetalleCatalogo, setCargandoDetalleCatalogo] = useState(false);
   const [guardando, setGuardando] = useState(false);
+
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
   const hayEmpleado = !!Number(idEmpleado);
   const hayCatalogoSeleccionado = !!Number(catalogoSeleccionado);
   const hayAsignado = !!horarioAsignado;
+
+  const PAGE_SIZE = 31;
+  const [page, setPage] = useState(1);
+  const tableWrapRef = useRef(null);
+
+  const resetTableScroll = useCallback(() => {
+    if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
+  }, []);
 
   const detalleMostrado = useMemo(() => {
     const cat = Number(catalogoSeleccionado);
@@ -122,19 +135,32 @@ export default function HorarioEmpleado() {
       .sort((a, b) => Number(a.diaSemana) - Number(b.diaSemana));
   }, [detalleMostrado]);
 
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((detalleConLabels.length || 0) / PAGE_SIZE);
+    return n > 0 ? n : 1;
+  }, [detalleConLabels.length]);
+
+  const pagedDetalle = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return detalleConLabels.slice(start, start + PAGE_SIZE);
+  }, [detalleConLabels, page]);
+
+  const goToPage = useCallback(
+    (p) => {
+      const next = Math.max(1, Math.min(totalPages, Number(p || 1)));
+      setPage(next);
+      resetTableScroll();
+    },
+    [totalPages, resetTableScroll]
+  );
+
   const cargarEmpleados = useCallback(async () => {
     setCargandoEmpleados(true);
     setError("");
     try {
       const r = await listarEmpleados();
       const data = extractApiData(r);
-
-      const list = Array.isArray(data?.empleados)
-        ? data.empleados
-        : Array.isArray(data)
-        ? data
-        : [];
-
+      const list = Array.isArray(data?.empleados) ? data.empleados : Array.isArray(data) ? data : [];
       setEmpleados(list);
     } catch (err) {
       setError(String(err?.message || err));
@@ -160,77 +186,94 @@ export default function HorarioEmpleado() {
     }
   }, []);
 
-  const cargarDetalleDeCatalogo = useCallback(async (idCat) => {
-    const cat = Number(idCat || 0);
-    if (!cat) {
-      setDetalleCatalogo(buildDetalleCompleto([]));
-      return;
-    }
-    setCargandoDetalleCatalogo(true);
-    setError("");
-    try {
-      const r = await obtenerDetalleCatalogoHorario(cat);
-      const data = extractApiData(r);
-      const raw = Array.isArray(data?.detalle) ? data.detalle : [];
-      setDetalleCatalogo(buildDetalleCompleto(raw));
-    } catch (err) {
-      setError(String(err?.message || err));
-    } finally {
-      setCargandoDetalleCatalogo(false);
-    }
-  }, []);
+  const cargarDetalleDeCatalogo = useCallback(
+    async (idCat) => {
+      const cat = Number(idCat || 0);
+      if (!cat) {
+        setDetalleCatalogo(buildDetalleCompleto([]));
+        setPage(1);
+        resetTableScroll();
+        return;
+      }
+      setCargandoDetalleCatalogo(true);
+      setError("");
+      try {
+        const r = await obtenerDetalleCatalogoHorario(cat);
+        const data = extractApiData(r);
+        const raw = Array.isArray(data?.detalle) ? data.detalle : [];
+        setDetalleCatalogo(buildDetalleCompleto(raw));
+        setPage(1);
+        resetTableScroll();
+      } catch (err) {
+        setError(String(err?.message || err));
+      } finally {
+        setCargandoDetalleCatalogo(false);
+      }
+    },
+    [resetTableScroll]
+  );
 
-  const cargarHorarioEmpleado = useCallback(async (empId) => {
-    const emp = Number(empId || 0);
+  const cargarHorarioEmpleado = useCallback(
+    async (empId) => {
+      const emp = Number(empId || 0);
 
-    if (!emp) {
-      setHorarioAsignado(null);
-      setDetalleAsignado(buildDetalleCompleto([]));
-      setCatalogoSeleccionado("");
-      setDetalleCatalogo(buildDetalleCompleto([]));
-      setInfo("");
-      return;
-    }
-
-    setCargando(true);
-    setError("");
-    setInfo("");
-
-    try {
-      let r = await obtenerHorarioEmpleado(emp);
-
-      const data1 = extractApiData(r);
-      const maybeHorario = data1?.horario;
-      const maybeDetalle = data1?.detalle;
-
-      if (maybeHorario === undefined && maybeDetalle === undefined) {
-        r = await obtenerDetalleHorarioEmpleado(emp);
+      if (!emp) {
+        setHorarioAsignado(null);
+        setDetalleAsignado(buildDetalleCompleto([]));
+        setCatalogoSeleccionado("");
+        setDetalleCatalogo(buildDetalleCompleto([]));
+        setInfo("");
+        setPage(1);
+        resetTableScroll();
+        return;
       }
 
-      const data = extractApiData(r);
-      const h = data?.horario || null;
-      const rawDetalle = Array.isArray(data?.detalle) ? data.detalle : [];
+      setCargando(true);
+      setError("");
+      setInfo("");
 
-      setHorarioAsignado(h);
-      setDetalleAsignado(buildDetalleCompleto(rawDetalle));
+      try {
+        let r = await obtenerHorarioEmpleado(emp);
 
-      const backendCat = h?.idCatalogoHorario ? String(h.idCatalogoHorario) : "";
-      setCatalogoSeleccionado((prev) => (prev ? prev : backendCat));
+        const data1 = extractApiData(r);
+        const maybeHorario = data1?.horario;
+        const maybeDetalle = data1?.detalle;
 
-      setDetalleCatalogo(buildDetalleCompleto(rawDetalle));
+        if (maybeHorario === undefined && maybeDetalle === undefined) {
+          r = await obtenerDetalleHorarioEmpleado(emp);
+        }
 
-      if (!h) setInfo("Este empleado aún no tiene horario asignado. Seleccioná un catálogo y asignalo.");
-      else setInfo("Horario cargado.");
-    } catch (err) {
-      setHorarioAsignado(null);
-      setDetalleAsignado(buildDetalleCompleto([]));
-      setCatalogoSeleccionado("");
-      setDetalleCatalogo(buildDetalleCompleto([]));
-      setError(String(err?.message || err));
-    } finally {
-      setCargando(false);
-    }
-  }, []);
+        const data = extractApiData(r);
+        const h = data?.horario || null;
+        const rawDetalle = Array.isArray(data?.detalle) ? data.detalle : [];
+
+        setHorarioAsignado(h);
+        setDetalleAsignado(buildDetalleCompleto(rawDetalle));
+
+        const backendCat = h?.idCatalogoHorario ? String(h.idCatalogoHorario) : "";
+        setCatalogoSeleccionado((prev) => (prev ? prev : backendCat));
+
+        setDetalleCatalogo(buildDetalleCompleto(rawDetalle));
+
+        setPage(1);
+        resetTableScroll();
+
+        if (!h) setInfo("Este empleado aún no tiene horario asignado. Seleccioná un catálogo y asignalo.");
+        else setInfo("Horario cargado.");
+      } catch (err) {
+        setHorarioAsignado(null);
+        setDetalleAsignado(buildDetalleCompleto([]));
+        setCatalogoSeleccionado("");
+        setDetalleCatalogo(buildDetalleCompleto([]));
+        setError(String(err?.message || err));
+        setPage(1);
+        resetTableScroll();
+      } finally {
+        setCargando(false);
+      }
+    },
+    [resetTableScroll]
+  );
 
   const asignarCatalogo = useCallback(async () => {
     const emp = Number(idEmpleado);
@@ -255,7 +298,6 @@ export default function HorarioEmpleado() {
       const r = await asignarCatalogoHorarioEmpleado(emp, cat);
       const data = extractApiData(r);
       setInfo(data?.mensaje || "Horario asignado.");
-
       await cargarHorarioEmpleado(emp);
     } catch (err) {
       setError(String(err?.message || err));
@@ -300,18 +342,37 @@ export default function HorarioEmpleado() {
   }, []);
 
   return (
-    <div className="container-fluid py-3">
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <h3 className="m-0">Horario por empleado (Catálogo)</h3>
+    <div className="container-fluid p-0">
+      <div className="card">
+        <div className="card-body">
+          <Row className="g-2 align-items-center">
+            <Col xs={12} md>
+              <h4 className="mb-0 text-marenco-red">Horario por empleado</h4>
+              <div className="text-muted small">Gestión para asignar horarios.</div>
+            </Col>
+          </Row>
+        </div>
       </div>
 
-      {error ? <Alert variant="danger">{error}</Alert> : null}
-      {info ? <Alert variant="success">{info}</Alert> : null}
+      {(error || info) && (
+        <div className="mt-3">
+          {error ? (
+            <Alert variant="danger" className="dm-alert-accent mb-2">
+              {error}
+            </Alert>
+          ) : null}
+          {info ? (
+            <Alert variant="success" className="dm-alert-accent mb-0">
+              {info}
+            </Alert>
+          ) : null}
+        </div>
+      )}
 
-      <Card className="mb-3">
-        <Card.Body>
+      <div className="card mt-3">
+        <div className="card-body">
           <Row className="g-2 align-items-end">
-            <Col md={4}>
+            <Col xs={12} md={4}>
               <Form.Group>
                 <Form.Label>Empleado</Form.Label>
                 <Form.Select
@@ -319,9 +380,7 @@ export default function HorarioEmpleado() {
                   onChange={(ev) => setIdEmpleado(ev.target.value)}
                   disabled={cargandoEmpleados || guardando || cargando}
                 >
-                  <option value="">
-                    {cargandoEmpleados ? "Cargando empleados..." : "Seleccione un empleado"}
-                  </option>
+                  <option value="">{cargandoEmpleados ? "Cargando empleados..." : "Seleccione un empleado"}</option>
                   {empleados.map((emp) => {
                     const id = getEmpleadoId(emp);
                     if (!id) return null;
@@ -336,7 +395,7 @@ export default function HorarioEmpleado() {
               </Form.Group>
             </Col>
 
-            <Col md={5}>
+            <Col xs={12} md={5}>
               <Form.Group>
                 <Form.Label>Catálogo de horario</Form.Label>
                 <Form.Select
@@ -364,110 +423,168 @@ export default function HorarioEmpleado() {
               </Form.Group>
             </Col>
 
-            <Col md="auto">
+            <Col xs={12} md="auto" className="d-flex gap-2">
               <Button
-                variant="outline-primary"
+                variant="outline-secondary"
+                className="dm-btn-outline-red"
                 onClick={() => cargarHorarioEmpleado(idEmpleado)}
                 disabled={cargando || guardando || !hayEmpleado}
               >
                 {cargando ? (
-                  <>
-                    <Spinner size="sm" /> Cargando...
-                  </>
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <Spinner size="sm" />
+                    Cargando…
+                  </span>
                 ) : (
                   "Refrescar"
                 )}
               </Button>
-            </Col>
 
-            <Col md="auto">
-              <Button
-                variant="success"
-                onClick={asignarCatalogo}
-                disabled={cargando || guardando || !hayCatalogoSeleccionado || !hayEmpleado}
-              >
+              <Button variant="primary" onClick={asignarCatalogo} disabled={cargando || guardando || !hayCatalogoSeleccionado || !hayEmpleado}>
                 {guardando ? (
-                  <>
-                    <Spinner size="sm" /> Asignando...
-                  </>
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <Spinner size="sm" />
+                    Asignando…
+                  </span>
                 ) : (
                   "Asignar horario"
                 )}
               </Button>
             </Col>
+
+            {hayAsignado ? (
+              <Col xs={12}>
+                <div className="dm-surface p-3 mt-2">
+                  <div className="fw-semibold">
+                    <span className="text-muted">Asignado:</span> {horarioAsignado?.catalogoDescripcion || "(sin descripción)"}{" "}
+                    {horarioAsignado?.tipoHorarioDescripcion ? `— Tipo: ${horarioAsignado.tipoHorarioDescripcion}` : ""}
+                  </div>
+                  {mostrarIdsEnUI ? (
+                    <div className="text-muted small">
+                      idCatálogo: {horarioAsignado?.idCatalogoHorario} · idHorarioEmpleado: {horarioAsignado?.idHorarioEmpleado}
+                    </div>
+                  ) : null}
+                </div>
+              </Col>
+            ) : null}
+
+            {hayEmpleado && hayCatalogoSeleccionado ? (
+              <Col xs={12}>
+                <div className="text-muted small mt-2">
+                  Mostrando detalle de: {catalogoSeleccionadoObj?.descripcion || `Catálogo ${catalogoSeleccionado}`}
+                  {cargandoDetalleCatalogo ? " (cargando...)" : ""}
+                </div>
+              </Col>
+            ) : null}
           </Row>
+        </div>
+      </div>
 
-          {hayAsignado ? (
-            <div className="mt-3" style={{ fontSize: 14 }}>
-              <div>
-                <strong>Asignado:</strong> {horarioAsignado?.catalogoDescripcion || "(sin descripción)"}{" "}
-                {horarioAsignado?.tipoHorarioDescripcion
-                  ? `— Tipo: ${horarioAsignado.tipoHorarioDescripcion}`
-                  : ""}
-              </div>
-              <div style={{ color: "#666" }}>
-                {mostrarIdsEnUI ? (
-                  <>
-                    idCatálogo: {horarioAsignado?.idCatalogoHorario} · idHorarioEmpleado:{" "}
-                    {horarioAsignado?.idHorarioEmpleado}
-                  </>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {hayEmpleado && hayCatalogoSeleccionado ? (
-            <div className="mt-2" style={{ fontSize: 13, color: "#666" }}>
-              Mostrando detalle de:{" "}
-              {catalogoSeleccionadoObj?.descripcion || `Catálogo ${catalogoSeleccionado}`}
-              {cargandoDetalleCatalogo ? " (cargando...)" : ""}
-            </div>
-          ) : null}
-        </Card.Body>
-      </Card>
-
-      <Card>
-        <Card.Body>
-          <div className="mb-2" style={{ fontWeight: 600 }}>
-            Detalle del horario (DAYOFWEEK: 1=Domingo … 7=Sábado)
+      <div className="card mt-3">
+        <div className="card-body p-0">
+          <div className="px-3 py-3 border-bottom">
+            <div className="fw-bold">Detalle del horario</div>
           </div>
 
-          {!hayEmpleado ? (
-            <Alert variant="secondary">Seleccione un empleado.</Alert>
-          ) : !hayAsignado && !hayCatalogoSeleccionado ? (
-            <Alert variant="warning">
-              El empleado no tiene horario asignado. Seleccione un catálogo para ver el detalle y asignarlo.
-            </Alert>
-          ) : null}
+          <div className="px-3 pt-3">
+            {!hayEmpleado ? (
+              <Alert variant="secondary" className="mb-0">
+                Seleccione un empleado.
+              </Alert>
+            ) : !hayAsignado && !hayCatalogoSeleccionado ? (
+              <Alert variant="danger" className="dm-alert-accent mb-0">
+                El empleado no tiene horario asignado. Seleccione un catálogo para ver el detalle y asignarlo.
+              </Alert>
+            ) : null}
+          </div>
 
-          <Table responsive bordered hover>
-            <thead>
-              <tr>
-                <th style={{ width: 160 }}>Día</th>
-                <th style={{ width: 180 }}>Entrada</th>
-                <th style={{ width: 180 }}>Salida</th>
-                <th>Nota</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detalleConLabels.map((d) => (
-                <tr key={`dia-${d.diaSemana}`}>
-                  <td>{d.label}</td>
-                  <td>
-                    <Form.Control type="time" value={horaParaInput(d.entrada)} disabled readOnly />
-                  </td>
-                  <td>
-                    <Form.Control type="time" value={horaParaInput(d.salida)} disabled readOnly />
-                  </td>
-                  <td style={{ fontSize: 13, color: "#666" }}>
-                    {Number(d.activo) === 0 ? "Inactivo" : d.entrada && d.salida ? "" : "—"}
-                  </td>
+          <div ref={tableWrapRef} className="table-responsive" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+            <Table bordered hover className="mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th style={{ width: 180 }} className="text-nowrap">
+                    Día
+                  </th>
+                  <th style={{ width: 200 }} className="text-nowrap">
+                    Entrada
+                  </th>
+                  <th style={{ width: 200 }} className="text-nowrap">
+                    Salida
+                  </th>
+                  <th className="text-nowrap">Nota</th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
-        </Card.Body>
-      </Card>
+              </thead>
+              <tbody>
+                {pagedDetalle.map((d) => (
+                  <tr key={`dia-${d.diaSemana}`}>
+                    <td className="fw-semibold">{d.label}</td>
+                    <td className="text-nowrap">
+                      <Form.Control type="time" value={horaParaInput(d.entrada)} disabled readOnly />
+                    </td>
+                    <td className="text-nowrap">
+                      <Form.Control type="time" value={horaParaInput(d.salida)} disabled readOnly />
+                    </td>
+                    <td className="text-muted" style={{ fontSize: 13 }}>
+                      {Number(d.activo) === 0 ? "Inactivo" : d.entrada && d.salida ? "" : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-top">
+            <div className="text-muted small">
+              {cargandoDetalleCatalogo
+                ? "Cargando detalle..."
+                : `${detalleConLabels.length} fila(s) • Página ${page} de ${totalPages} • Mostrando ${PAGE_SIZE} por página`}
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline-secondary"
+                className="dm-btn-outline-red"
+                onClick={() => goToPage(page - 1)}
+                disabled={cargando || guardando || page <= 1}
+              >
+                Anterior
+              </Button>
+
+              <Form.Select
+                size="sm"
+                value={page}
+                onChange={(e) => goToPage(e.target.value)}
+                disabled={cargando || guardando}
+                style={{ width: 120, height: 36 }}
+              >
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>
+                    Página {p}
+                  </option>
+                ))}
+              </Form.Select>
+
+              <Button
+                size="sm"
+                variant="outline-secondary"
+                className="dm-btn-outline-red"
+                onClick={() => goToPage(page + 1)}
+                disabled={cargando || guardando || page >= totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+
+            {cargando ? (
+              <div className="d-flex align-items-center gap-2">
+                <Spinner size="sm" />
+                <span className="small">Procesando…</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

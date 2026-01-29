@@ -1,7 +1,6 @@
 //Usuarios.jsx
-import { useEffect, useState } from "react";
-import { Button, Form, Modal, Row, Col, Alert, Spinner } from "react-bootstrap";
-import { DataGrid } from "@mui/x-data-grid";
+import { useEffect, useState, useCallback } from "react";
+import { Button, Form, Modal, Row, Col, Alert, Spinner, Badge } from "react-bootstrap";
 
 import {
   listarUsuarios,
@@ -13,6 +12,7 @@ import {
 } from "@/services/usuariosService";
 
 import { obtenerCatalogosRoles } from "@/services/catalogosService";
+
 const ESTADOS = [
   { value: "all", label: "Todos" },
   { value: "1", label: "Activos" },
@@ -26,22 +26,26 @@ const SI_NO_TODOS = [
 ];
 
 export default function Usuarios() {
-  
   const [texto, setTexto] = useState("");
   const [activo, setActivo] = useState("all");
   const [bloqueado, setBloqueado] = useState("all");
   const [rolId, setRolId] = useState("");
+
   const [rows, setRows] = useState([]);
   const [roles, setRoles] = useState([]);
   const [empleados, setEmpleados] = useState([]);
+
+  // ✅ Separar loading general de acciones para que la tabla no “parpadee”
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(false);
+
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
+
   const [showModal, setShowModal] = useState(false);
-  const [modo, setModo] = useState("crear");  
+  const [modo, setModo] = useState("crear");
   const [editId, setEditId] = useState(null);
 
-   
   const [form, setForm] = useState({
     empleadoId: "",
     nombreUsuario: "",
@@ -52,71 +56,73 @@ export default function Usuarios() {
     intentosFallidos: 0,
   });
 
-  async function cargarRoles() {
+  const filtrosActuales = useCallback(
+    () => ({
+      texto,
+      activo,
+      bloqueado,
+      rolId: rolId || undefined,
+    }),
+    [texto, activo, bloqueado, rolId]
+  );
+
+  const limpiarMensajes = useCallback(() => {
+    setError("");
+    setOkMsg("");
+  }, []);
+
+  const cargarRoles = useCallback(async () => {
     const data = await obtenerCatalogosRoles();
-     
     const list = data?.roles || data?.data?.roles || data?.catalogos?.roles || [];
     const normalizados = list.map((r) => ({
       id: r.idCatalogo_Rol ?? r.id ?? r.rolId ?? r.idRol,
       descripcion: r.Descripcion ?? r.descripcion ?? r.nombre ?? r.rolNombre,
     }));
     setRoles(normalizados.filter((r) => r.id));
-  }
+  }, []);
 
-  async function cargarEmpleadosDisponibles() {
+  const cargarEmpleadosDisponibles = useCallback(async () => {
     const data = await listarEmpleadosDisponibles();
     setEmpleados(data?.empleados || []);
-  }
+  }, []);
 
-  async function cargarUsuarios(params) {
+  const cargarUsuarios = useCallback(async (params) => {
     setLoading(true);
     setError("");
-    setOkMsg("");
     try {
-      const data = await listarUsuarios(
-        params || {
-          texto,
-          activo,
-          bloqueado,
-          rolId: rolId || undefined,
-        }
-      );
-
+      const data = await listarUsuarios(params);
       const usuarios = data?.usuarios || [];
-
-       
       setRows(
         (usuarios || [])
           .filter((u) => u?.idUsuario)
           .map((u) => ({
             ...u,
-            id: u.idUsuario,  
+            id: u.idUsuario,
           }))
       );
     } catch (e) {
       setError(e?.response?.data?.mensaje || "Error cargando usuarios");
+      setRows([]);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-     
     (async () => {
       try {
         await cargarRoles();
-        await cargarUsuarios();
+        await cargarUsuarios({
+          texto: "",
+          activo: "all",
+          bloqueado: "all",
+          rolId: undefined,
+        });
       } catch (e) {
         setError(e?.response?.data?.mensaje || "Error inicial");
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function limpiarMensajes() {
-    setError("");
-    setOkMsg("");
-  }
+  }, [cargarRoles, cargarUsuarios]);
 
   function abrirCrear() {
     limpiarMensajes();
@@ -132,8 +138,6 @@ export default function Usuarios() {
       intentosFallidos: 0,
     });
     setShowModal(true);
-
-     
     cargarEmpleadosDisponibles().catch(() => {});
   }
 
@@ -146,21 +150,19 @@ export default function Usuarios() {
       empleadoId: String(u.empleadoId ?? ""),
       nombreUsuario: String(u.nombreUsuario ?? ""),
       rolId: String(u.rolId ?? ""),
-      password: "", 
+      password: "",
       activo: Boolean(u.activo),
       bloqueado: Boolean(u.bloqueado),
       intentosFallidos: Number(u.intentosFallidos ?? 0),
     });
 
     setShowModal(true);
-
-     
     cargarEmpleadosDisponibles().catch(() => {});
   }
 
   async function onSubmitModal(e) {
     e.preventDefault();
-    setLoading(true);
+    setLoadingAction(true);
     setError("");
     setOkMsg("");
 
@@ -188,17 +190,17 @@ export default function Usuarios() {
       }
 
       setShowModal(false);
-      await cargarUsuarios();
+      await cargarUsuarios(filtrosActuales());
     } catch (e2) {
       setError(e2?.response?.data?.mensaje || "Error guardando usuario");
     } finally {
-      setLoading(false);
+      setLoadingAction(false);
     }
   }
 
   async function toggleActivo(u) {
     if (!u?.idUsuario) return;
-    setLoading(true);
+    setLoadingAction(true);
     setError("");
     setOkMsg("");
     try {
@@ -216,17 +218,17 @@ export default function Usuarios() {
         });
         setOkMsg("Usuario activado.");
       }
-      await cargarUsuarios();
+      await cargarUsuarios(filtrosActuales());
     } catch (e) {
       setError(e?.response?.data?.mensaje || "Error cambiando estado");
     } finally {
-      setLoading(false);
+      setLoadingAction(false);
     }
   }
 
   async function toggleBloqueo(u) {
     if (!u?.idUsuario) return;
-    setLoading(true);
+    setLoadingAction(true);
     setError("");
     setOkMsg("");
     try {
@@ -239,21 +241,19 @@ export default function Usuarios() {
         intentosFallidos: u.bloqueado ? 0 : Number(u.intentosFallidos ?? 0),
       });
       setOkMsg(u.bloqueado ? "Usuario desbloqueado." : "Usuario bloqueado.");
-      await cargarUsuarios();
+      await cargarUsuarios(filtrosActuales());
     } catch (e) {
       setError(e?.response?.data?.mensaje || "Error cambiando bloqueo");
     } finally {
-      setLoading(false);
+      setLoadingAction(false);
     }
   }
 
   async function resetPassword(u) {
-    const nueva = window.prompt(
-      `Nueva contraseña para "${u.nombreUsuario}" (mínimo 6):`
-    );
+    const nueva = window.prompt(`Nueva contraseña para "${u.nombreUsuario}" (mínimo 6):`);
     if (!nueva) return;
 
-    setLoading(true);
+    setLoadingAction(true);
     setError("");
     setOkMsg("");
     try {
@@ -267,44 +267,41 @@ export default function Usuarios() {
         password: nueva,
       });
       setOkMsg("Contraseña actualizada.");
-      await cargarUsuarios();
+      await cargarUsuarios(filtrosActuales());
     } catch (e) {
       setError(e?.response?.data?.mensaje || "Error actualizando contraseña");
     } finally {
-      setLoading(false);
+      setLoadingAction(false);
     }
   }
 
   async function hardDelete(u) {
     const ok = window.confirm(
-      `¿Eliminar DEFINITIVAMENTE el usuario "${u.nombreUsuario}"? (solo Admin; puede fallar por FK)`
+      `¿Eliminar DEFINITIVAMENTE el usuario "${u.nombreUsuario}"? (solo Admin)`
     );
     if (!ok) return;
 
-    setLoading(true);
+    setLoadingAction(true);
     setError("");
     setOkMsg("");
     try {
       await eliminarUsuarioHard(u.idUsuario);
       setOkMsg("Usuario eliminado definitivamente.");
-      await cargarUsuarios();
+      await cargarUsuarios(filtrosActuales());
     } catch (e) {
-      setError(e?.response?.data?.mensaje || "Error en hard delete");
+      setError(e?.response?.data?.mensaje || "Error en eliminar");
     } finally {
-      setLoading(false);
+      setLoadingAction(false);
     }
   }
 
   function aplicarFiltros() {
-    cargarUsuarios({
-      texto,
-      activo,
-      bloqueado,
-      rolId: rolId || undefined,
-    });
+    limpiarMensajes();
+    cargarUsuarios(filtrosActuales());
   }
 
   function limpiarFiltros() {
+    limpiarMensajes();
     setTexto("");
     setActivo("all");
     setBloqueado("all");
@@ -321,202 +318,254 @@ export default function Usuarios() {
     );
   }
 
-   
-  const columns = [
-    { field: "idUsuario", headerName: "ID", width: 90 },
-    { field: "nombreUsuario", headerName: "Usuario", flex: 1, minWidth: 150 },
-    { field: "empleadoId", headerName: "Empleado", width: 110 },
-    { field: "rolNombre", headerName: "Rol", width: 170 },
-    {
-      field: "intentosFallidos",
-      headerName: "Intentos",
-      width: 110,
-      valueGetter: (params) => params?.row?.intentosFallidos ?? 0,
-    },
-    {
-      field: "bloqueado",
-      headerName: "Bloqueado",
-      width: 120,
-      valueGetter: (params) => (params?.row?.bloqueado ? "Sí" : "No"),
-    },
-    {
-      field: "activo",
-      headerName: "Activo",
-      width: 110,
-      valueGetter: (params) => (params?.row?.activo ? "Sí" : "No"),
-    },
-    {
-      field: "acciones",
-      headerName: "Acciones",
-      width: 360,
-      sortable: false,
-      filterable: false,
-      renderCell: (params) => {
-        const u = params?.row;
-        if (!u) return null;
-
-        return (
-           
-          <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
-            <Button size="sm" variant="primary" onClick={() => abrirEditar(u)}>
-              Editar
-            </Button>
-
-            <Button
-              size="sm"
-              variant={u.bloqueado ? "secondary" : "warning"}
-              onClick={() => toggleBloqueo(u)}
-            >
-              {u.bloqueado ? "Desbloquear" : "Bloquear"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant={u.activo ? "outline-danger" : "outline-success"}
-              onClick={() => toggleActivo(u)}
-            >
-              {u.activo ? "Desactivar" : "Activar"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline-dark"
-              onClick={() => resetPassword(u)}
-            >
-              Reset Pass
-            </Button>
-
-            <Button size="sm" variant="danger" onClick={() => hardDelete(u)}>
-              Hard
-            </Button>
-          </div>
-        );
-      },
-    },
-  ];
+  const disabledUi = loading || loadingAction;
 
   return (
     <div className="container-fluid">
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <h3 className="m-0">Usuarios</h3>
-        <Button variant="success" onClick={abrirCrear}>
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+          <h3 className="mb-0 fw-bold">Usuarios</h3>
+          <div className="text-muted small">Gestion de usuarios</div>
+        </div>
+
+        <Button variant="success" className="fw-bold" onClick={abrirCrear} disabled={disabledUi}>
+          <i className="bi bi-plus-lg me-2"></i>
           Crear usuario
         </Button>
       </div>
 
       {error && (
-        <Alert variant="danger" onClose={() => setError("")} dismissible>
+        <Alert variant="danger" className="dm-alert-accent" onClose={() => setError("")} dismissible>
           {error}
         </Alert>
       )}
       {okMsg && (
-        <Alert variant="success" onClose={() => setOkMsg("")} dismissible>
+        <Alert variant="success" className="dm-alert-accent" onClose={() => setOkMsg("")} dismissible>
           {okMsg}
         </Alert>
       )}
 
-      <div className="card p-3 mb-3">
-        <Row className="g-2">
-          <Col md={4}>
-            <Form.Control
-              placeholder="Buscar (usuario o nombre/apellidos)"
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-            />
-          </Col>
+      <div className="card mb-3">
+        <div className="card-body">
+          <Row className="g-2 align-items-end">
+            <Col xs={12} md={4}>
+              <Form.Label className="fw-semibold">Buscar</Form.Label>
+              <Form.Control
+                placeholder="Usuario o nombre/apellidos"
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                disabled={disabledUi}
+              />
+            </Col>
 
-          <Col md={2}>
-            <Form.Select value={activo} onChange={(e) => setActivo(e.target.value)}>
-              {ESTADOS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Form.Select>
-          </Col>
+            <Col xs={12} sm={6} md={2}>
+              <Form.Label className="fw-semibold">Estado</Form.Label>
+              <Form.Select value={activo} onChange={(e) => setActivo(e.target.value)} disabled={disabledUi}>
+                {ESTADOS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
 
-          <Col md={2}>
-            <Form.Select
-              value={bloqueado}
-              onChange={(e) => setBloqueado(e.target.value)}
-            >
-              {SI_NO_TODOS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Form.Select>
-          </Col>
+            <Col xs={12} sm={6} md={2}>
+              <Form.Label className="fw-semibold">Bloqueado</Form.Label>
+              <Form.Select
+                value={bloqueado}
+                onChange={(e) => setBloqueado(e.target.value)}
+                disabled={disabledUi}
+              >
+                {SI_NO_TODOS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
 
-          <Col md={2}>
-            <Form.Select value={rolId} onChange={(e) => setRolId(e.target.value)}>
-              <option value="">Todos los roles</option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.descripcion}
-                </option>
-              ))}
-            </Form.Select>
-          </Col>
+            <Col xs={12} md={2}>
+              <Form.Label className="fw-semibold">Rol</Form.Label>
+              <Form.Select value={rolId} onChange={(e) => setRolId(e.target.value)} disabled={disabledUi}>
+                <option value="">Todos los roles</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.descripcion}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
 
-          <Col md={2} className="d-flex gap-2">
-            <Button variant="primary" onClick={aplicarFiltros} className="w-100">
-              Filtrar
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={limpiarFiltros}
-              className="w-100"
-            >
-              Limpiar
-            </Button>
-          </Col>
-        </Row>
+            <Col xs={12} md={2} className="d-flex gap-2">
+              <Button
+                variant="primary"
+                onClick={aplicarFiltros}
+                className="w-100 fw-bold"
+                disabled={disabledUi}
+              >
+                <i className="bi bi-funnel me-2"></i>
+                Filtrar
+              </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={limpiarFiltros}
+                className="w-100 fw-bold"
+                disabled={disabledUi}
+              >
+                Limpiar
+              </Button>
+            </Col>
+          </Row>
+        </div>
       </div>
 
-      <div style={{ height: 560, width: "100%" }}>
-        <DataGrid
-          rows={rows}
-          columns={columns}
-           
-          rowHeight={72}
-          loading={loading}
-          pageSizeOptions={[10, 25, 50]}
-          initialState={{
-            pagination: { paginationModel: { pageSize: 10, page: 0 } },
-          }}
-          disableRowSelectionOnClick
-           
-          getRowId={(r) => r.idUsuario}
-        />
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <div className="text-muted small">{rows.length} registro(s)</div>
+            {disabledUi && (
+              <div className="d-flex align-items-center gap-2">
+                <Spinner size="sm" />
+                <span className="small">Procesando…</span>
+              </div>
+            )}
+          </div>
+
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style={{ width: 90 }}>ID</th>
+                  <th>Usuario</th>
+                  <th style={{ width: 110 }}>Empleado</th>
+                  <th style={{ width: 170 }}>Rol</th>
+                  <th style={{ width: 110 }}>Intentos</th>
+                  <th style={{ width: 120 }}>Bloqueado</th>
+                  <th style={{ width: 110 }}>Activo</th>
+                  <th style={{ width: 420 }}>Acciones</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {!loading && rows.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center py-4 text-muted">
+                      Sin resultados
+                    </td>
+                  </tr>
+                )}
+
+                {rows.map((u) => (
+                  <tr key={u.idUsuario}>
+                    <td>{u.idUsuario}</td>
+                    <td className="fw-semibold">{u.nombreUsuario}</td>
+                    <td>{u.empleadoId}</td>
+                    <td>{u.rolNombre}</td>
+                    <td>{u.intentosFallidos ?? 0}</td>
+                    <td>
+                      {u.bloqueado ? (
+                        <Badge bg="warning" text="dark">
+                          Sí
+                        </Badge>
+                      ) : (
+                        <Badge bg="secondary">No</Badge>
+                      )}
+                    </td>
+                    <td>{u.activo ? <Badge bg="success">Sí</Badge> : <Badge bg="danger">No</Badge>}</td>
+                    <td>
+                      <div className="d-flex flex-wrap align-items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          className="fw-bold"
+                          onClick={() => abrirEditar(u)}
+                          disabled={disabledUi}
+                        >
+                          <i className="bi bi-pencil-square me-1"></i>
+                          Editar
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant={u.bloqueado ? "outline-secondary" : "warning"}
+                          className="fw-bold"
+                          onClick={() => toggleBloqueo(u)}
+                          disabled={disabledUi}
+                        >
+                          <i className={u.bloqueado ? "bi bi-unlock me-1" : "bi bi-lock me-1"}></i>
+                          {u.bloqueado ? "Desbloquear" : "Bloquear"}
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant={u.activo ? "outline-danger" : "outline-success"}
+                          className="fw-bold"
+                          onClick={() => toggleActivo(u)}
+                          disabled={disabledUi}
+                        >
+                          <i className={u.activo ? "bi bi-x-circle me-1" : "bi bi-check-circle me-1"}></i>
+                          {u.activo ? "Desactivar" : "Activar"}
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline-dark"
+                          className="fw-bold"
+                          onClick={() => resetPassword(u)}
+                          disabled={disabledUi}
+                        >
+                          <i className="bi bi-key me-1"></i>
+                          Actualizar Contraseña
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          className="fw-bold"
+                          onClick={() => hardDelete(u)}
+                          disabled={disabledUi}
+                        >
+                          <i className="bi bi-trash3 me-1"></i>
+                          Eliminar
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+      <Modal
+        show={showModal}
+        onHide={() => (loadingAction ? null : setShowModal(false))}
+        centered
+        size="lg"
+        backdrop="static"
+      >
         <Form onSubmit={onSubmitModal}>
-          <Modal.Header closeButton>
-            <Modal.Title>
-              {modo === "crear" ? "Crear usuario" : "Editar usuario"}
-            </Modal.Title>
+          <Modal.Header closeButton={!loadingAction}>
+            <Modal.Title className="fw-bold">{modo === "crear" ? "Crear usuario" : "Editar usuario"}</Modal.Title>
           </Modal.Header>
 
           <Modal.Body>
-            {loading && (
-              <div className="mb-2 d-flex align-items-center gap-2">
+            {loadingAction && (
+              <div className="mb-3 d-flex align-items-center gap-2">
                 <Spinner size="sm" />
-                <span>Procesando…</span>
+                <span className="fw-semibold">Procesando…</span>
               </div>
             )}
 
             <Row className="g-3">
               <Col md={6}>
-                <Form.Label>Empleado</Form.Label>
+                <Form.Label className="fw-semibold">Empleado</Form.Label>
                 <Form.Select
                   value={form.empleadoId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, empleadoId: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, empleadoId: e.target.value }))}
                   required
-                  disabled={modo === "editar"}
+                  disabled={modo === "editar" || loadingAction}
                 >
                   <option value="">Seleccione...</option>
                   {empleados.map((emp) => (
@@ -525,21 +574,15 @@ export default function Usuarios() {
                     </option>
                   ))}
                 </Form.Select>
-                {modo === "editar" && (
-                  <Form.Text muted>
-                    (Para cambiar empleado, desactivá y creá otro usuario.)
-                  </Form.Text>
-                )}
               </Col>
 
               <Col md={6}>
-                <Form.Label>Rol</Form.Label>
+                <Form.Label className="fw-semibold">Rol</Form.Label>
                 <Form.Select
                   value={form.rolId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, rolId: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, rolId: e.target.value }))}
                   required
+                  disabled={loadingAction}
                 >
                   <option value="">Seleccione...</option>
                   {roles.map((r) => (
@@ -551,81 +594,70 @@ export default function Usuarios() {
               </Col>
 
               <Col md={6}>
-                <Form.Label>Nombre de usuario</Form.Label>
+                <Form.Label className="fw-semibold">Nombre de usuario</Form.Label>
                 <Form.Control
                   value={form.nombreUsuario}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, nombreUsuario: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, nombreUsuario: e.target.value }))}
                   required
+                  disabled={loadingAction}
                 />
               </Col>
 
               <Col md={6}>
-                <Form.Label>
-                  Contraseña {modo === "editar" ? "(opcional)" : ""}
-                </Form.Label>
+                <Form.Label className="fw-semibold">Contraseña {modo === "editar" ? "(opcional)" : ""}</Form.Label>
                 <Form.Control
                   type="password"
                   value={form.password}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, password: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                   required={modo === "crear"}
-                  placeholder={
-                    modo === "crear"
-                      ? "Mínimo 6 caracteres"
-                      : "Dejar vacío si no cambia"
-                  }
+                  placeholder={modo === "crear" ? "Mínimo 6 caracteres" : "Dejar vacío si no cambia"}
+                  disabled={loadingAction}
                 />
               </Col>
 
-              <Col md={4} className="d-flex align-items-center gap-2">
+              <Col md={4} className="d-flex align-items-center">
                 <Form.Check
                   type="switch"
                   label="Activo"
                   checked={form.activo}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, activo: e.target.checked }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
+                  disabled={loadingAction}
                 />
               </Col>
 
-              <Col md={4} className="d-flex align-items-center gap-2">
+              <Col md={4} className="d-flex align-items-center">
                 <Form.Check
                   type="switch"
                   label="Bloqueado"
                   checked={form.bloqueado}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, bloqueado: e.target.checked }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, bloqueado: e.target.checked }))}
+                  disabled={loadingAction}
                 />
               </Col>
 
               <Col md={4}>
-                <Form.Label>Intentos fallidos</Form.Label>
+                <Form.Label className="fw-semibold">Intentos fallidos</Form.Label>
                 <Form.Control
                   type="number"
                   min={0}
                   value={form.intentosFallidos}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, intentosFallidos: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, intentosFallidos: e.target.value }))}
+                  disabled={loadingAction}
                 />
-                <Form.Text muted>Si desbloqueás, podés ponerlo en 0.</Form.Text>
               </Col>
             </Row>
           </Modal.Body>
 
           <Modal.Footer>
             <Button
-              variant="secondary"
+              variant="outline-secondary"
               onClick={() => setShowModal(false)}
-              disabled={loading}
+              disabled={loadingAction}
+              className="fw-bold"
             >
               Cancelar
             </Button>
-            <Button variant="primary" type="submit" disabled={loading}>
+            <Button variant="primary" type="submit" disabled={loadingAction} className="fw-bold">
               Guardar
             </Button>
           </Modal.Footer>

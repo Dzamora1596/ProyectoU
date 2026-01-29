@@ -1,18 +1,6 @@
 // frontend/src/pages/planilla/Incapacidades.jsx
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Col,
-  Container,
-  Form,
-  Modal,
-  Row,
-  Spinner,
-  Table,
-} from "react-bootstrap";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Badge, Button, Card, Col, Container, Form, Modal, Row, Spinner, Table } from "react-bootstrap";
 import api from "../../api/axios";
 import {
   listarIncapacidades,
@@ -28,25 +16,17 @@ function normalizarRol(user) {
     .toLowerCase()
     .trim();
 }
-
 function esRolPlanilla(user) {
   const rol = normalizarRol(user);
   return rol.includes("planilla");
 }
-
 function puedeValidar(user) {
   const rol = normalizarRol(user);
   return rol === "admin" || rol === "jefatura";
 }
-
 function puedeCrearYSubir(user) {
   const rol = normalizarRol(user);
-  return (
-    rol === "colaborador" ||
-    rol.includes("planilla") ||
-    rol === "admin" ||
-    rol === "jefatura"
-  );
+  return rol === "colaborador" || rol.includes("planilla") || rol === "admin" || rol === "jefatura";
 }
 
 function estadoBadge(estado) {
@@ -97,7 +77,6 @@ function toDMYOnly(anyDate) {
 
   return "";
 }
-
 function fmtDate(s) {
   return toDMYOnly(s) || "";
 }
@@ -134,29 +113,19 @@ function pickId(obj, candidates) {
 function pickDesc(obj, candidates) {
   for (const k of candidates) {
     const v = obj?.[k];
-    if (v !== undefined && v !== null && String(v).trim() !== "")
-      return String(v).trim();
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
   }
   return "";
 }
 
 function normalizarNombreEmpleado(emp) {
-  const nombreCompleto = pickDesc(emp, [
-    "NombreCompleto",
-    "nombreCompleto",
-    "nombreCompletoEmpleado",
-  ]);
+  const nombreCompleto = pickDesc(emp, ["NombreCompleto", "nombreCompleto", "nombreCompletoEmpleado"]);
   if (nombreCompleto) return nombreCompleto;
 
   const p = emp?.persona || emp?.Persona || emp?.PERSONA;
-  const n =
-    pickDesc(emp, ["Nombre", "nombre"]) || pickDesc(p, ["Nombre", "nombre"]);
-  const a1 =
-    pickDesc(emp, ["Apellido1", "apellido1"]) ||
-    pickDesc(p, ["Apellido1", "apellido1"]);
-  const a2 =
-    pickDesc(emp, ["Apellido2", "apellido2"]) ||
-    pickDesc(p, ["Apellido2", "apellido2"]);
+  const n = pickDesc(emp, ["Nombre", "nombre"]) || pickDesc(p, ["Nombre", "nombre"]);
+  const a1 = pickDesc(emp, ["Apellido1", "apellido1"]) || pickDesc(p, ["Apellido1", "apellido1"]);
+  const a2 = pickDesc(emp, ["Apellido2", "apellido2"]) || pickDesc(p, ["Apellido2", "apellido2"]);
 
   return `${n} ${a1} ${a2}`.replace(/\s+/g, " ").trim();
 }
@@ -170,9 +139,7 @@ function parseAnyDateToMs(value) {
 
   const s = s0.replace(/\s+/g, " ");
 
-  const iso = s.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?$/
-  );
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
   if (iso) {
     const [, y, mo, d, hh, mi, ss] = iso;
     const asIso = `${y}-${mo}-${d}T${hh ?? "00"}:${mi ?? "00"}:${ss ?? "00"}`;
@@ -180,9 +147,7 @@ function parseAnyDateToMs(value) {
     return Number.isNaN(t) ? NaN : t;
   }
 
-  const dmy = s.match(
-    /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/
-  );
+  const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
   if (dmy) {
     const [, dd, mm, yyyy, hh, mi, ss] = dmy;
     const asIso = `${yyyy}-${mm}-${dd}T${hh ?? "00"}:${mi ?? "00"}:${ss ?? "00"}`;
@@ -196,33 +161,19 @@ function parseAnyDateToMs(value) {
 
 function getPeriodoIdFromAnyDate(anyDateValue, periodosArr) {
   const t = parseAnyDateToMs(anyDateValue);
-  if (Number.isNaN(t) || !Array.isArray(periodosArr) || periodosArr.length === 0)
-    return "";
+  if (Number.isNaN(t) || !Array.isArray(periodosArr) || periodosArr.length === 0) return "";
 
   for (const p of periodosArr) {
     const id = Number(pickId(p, ["idCatalogo_Periodo", "idPeriodo", "id", "Id"]));
     if (!id) continue;
 
-    const iniRaw = pickDesc(p, [
-      "fechaInicio",
-      "Fecha_Inicio",
-      "FechaInicio",
-      "inicio",
-      "Inicio",
-    ]);
-    const finRaw = pickDesc(p, [
-      "fechaFin",
-      "Fecha_Fin",
-      "FechaFin",
-      "fin",
-      "Fin",
-    ]);
+    const iniRaw = pickDesc(p, ["fechaInicio", "Fecha_Inicio", "FechaInicio", "inicio", "Inicio"]);
+    const finRaw = pickDesc(p, ["fechaFin", "Fecha_Fin", "FechaFin", "fin", "Fin"]);
 
     const ini = parseAnyDateToMs(iniRaw);
     const fin = parseAnyDateToMs(finRaw);
 
-    if (!Number.isNaN(ini) && !Number.isNaN(fin) && t >= ini && t <= fin)
-      return String(id);
+    if (!Number.isNaN(ini) && !Number.isNaN(fin) && t >= ini && t <= fin) return String(id);
   }
 
   return "";
@@ -298,11 +249,53 @@ export default function Incapacidades() {
   const [archivo, setArchivo] = useState(null);
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
 
-  const estadoNorm = useMemo(
-    () => String(detalle?.Estado || "").toLowerCase(),
-    [detalle?.Estado]
+  // ✅ Paginación + scroll (máx 31 por página)
+  const PAGE_SIZE = 31;
+  const [page, setPage] = useState(1);
+  const listWrapRef = useRef(null);
+
+  const resetListScroll = useCallback(() => {
+    if (listWrapRef.current) listWrapRef.current.scrollTop = 0;
+  }, []);
+
+  const goToPage = useCallback(
+    (p, totalPages) => {
+      const next = Math.max(1, Math.min(totalPages || 1, Number(p || 1)));
+      setPage(next);
+      resetListScroll();
+    },
+    [resetListScroll]
   );
 
+  // ✅ Orden por header
+  const [sortKey, setSortKey] = useState(esAdmin ? "ID" : "Inicio");
+  const [sortDir, setSortDir] = useState("desc");
+
+  const toggleSort = useCallback(
+    (key) => {
+      setPage(1);
+      resetListScroll();
+      setSortKey((prevKey) => {
+        if (prevKey !== key) {
+          setSortDir("asc");
+          return key;
+        }
+        setSortDir((prevDir) => (prevDir === "asc" ? "desc" : "asc"));
+        return prevKey;
+      });
+    },
+    [resetListScroll]
+  );
+
+  const sortIcon = useCallback(
+    (key) => {
+      if (sortKey !== key) return "↕";
+      return sortDir === "asc" ? "↑" : "↓";
+    },
+    [sortKey, sortDir]
+  );
+
+  const estadoNorm = useMemo(() => String(detalle?.Estado || "").toLowerCase(), [detalle?.Estado]);
   const esPendienteDetalle = estadoNorm.includes("pendiente");
 
   const cargarLista = useCallback(async () => {
@@ -312,12 +305,15 @@ export default function Incapacidades() {
     try {
       const data = await listarIncapacidades();
       setLista(Array.isArray(data) ? data : []);
+      setPage(1);
+      resetListScroll();
     } catch (err) {
       setError(err?.message || "Error cargando incapacidades.");
+      setLista([]);
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [resetListScroll]);
 
   const cargarDetalle = useCallback(async (idIncapacidad) => {
     if (!idIncapacidad) return;
@@ -349,10 +345,7 @@ export default function Incapacidades() {
         return;
       }
 
-      const nombre =
-        emp?.nombreCompleto ||
-        emp?.nombre ||
-        (emp?.idEmpleado ? `Empleado ${emp.idEmpleado}` : "Empleado");
+      const nombre = emp?.nombreCompleto || emp?.nombre || (emp?.idEmpleado ? `Empleado ${emp.idEmpleado}` : "Empleado");
       const row = { idEmpleado: Number(emp.idEmpleado), nombre: String(nombre) };
 
       setMiEmpleado(emp);
@@ -362,11 +355,7 @@ export default function Incapacidades() {
       setMiEmpleado(null);
       setEmpleados([]);
       setFormCrear((s) => ({ ...s, Empleado_idEmpleado: "" }));
-      setError(
-        err?.response?.data?.mensaje ||
-          err?.response?.data?.message ||
-          "Error cargando mi empleado"
-      );
+      setError(err?.response?.data?.mensaje || err?.response?.data?.message || "Error cargando mi empleado");
     }
   }, [esSelfOnly]);
 
@@ -375,24 +364,18 @@ export default function Incapacidades() {
     setError("");
     try {
       const tiposResp = await fetchFirstOk(["/catalogos/tipos-incapacidad"]);
-      const tiposArr = Array.isArray(tiposResp)
-        ? tiposResp
-        : tiposResp?.tiposIncapacidad || tiposResp?.tipos || [];
+      const tiposArr = Array.isArray(tiposResp) ? tiposResp : tiposResp?.tiposIncapacidad || tiposResp?.tipos || [];
       setTiposIncapacidad(Array.isArray(tiposArr) ? tiposArr : []);
 
       const perResp = await fetchFirstOk(["/catalogos/periodos"]);
-      const perArr = Array.isArray(perResp)
-        ? perResp
-        : perResp?.periodos || perResp?.data || [];
+      const perArr = Array.isArray(perResp) ? perResp : perResp?.periodos || perResp?.data || [];
       setPeriodos(Array.isArray(perArr) ? perArr : []);
 
       if (esSelfOnly) {
         await cargarMiEmpleado();
       } else {
         const empResp = await fetchFirstOk(["/catalogos/empleados", "/empleados"]);
-        const empArr = Array.isArray(empResp)
-          ? empResp
-          : empResp?.empleados || empResp?.data || [];
+        const empArr = Array.isArray(empResp) ? empResp : empResp?.empleados || empResp?.data || [];
         setEmpleados(Array.isArray(empArr) ? empArr : []);
       }
     } catch (err) {
@@ -400,11 +383,7 @@ export default function Incapacidades() {
       setPeriodos([]);
       setEmpleados([]);
       if (!esSelfOnly) setMiEmpleado(null);
-      setError(
-        err?.response?.data?.mensaje ||
-          err?.response?.data?.message ||
-          "Error cargando opciones"
-      );
+      setError(err?.response?.data?.mensaje || err?.response?.data?.message || "Error cargando opciones");
     } finally {
       setCargandoOpciones(false);
     }
@@ -445,8 +424,7 @@ export default function Incapacidades() {
       const idPeriodo = getPeriodoIdFromAnyDate(inicio, periodos);
       return {
         ...s,
-        Catalogo_Periodo_idCatalogo_Periodo:
-          idPeriodo || s.Catalogo_Periodo_idCatalogo_Periodo,
+        Catalogo_Periodo_idCatalogo_Periodo: idPeriodo || s.Catalogo_Periodo_idCatalogo_Periodo,
       };
     });
   }, [showCrear, periodos]);
@@ -462,15 +440,54 @@ export default function Incapacidades() {
       const desc = String(x?.Descripcion || "").toLowerCase();
       const tipo = String(x?.TipoIncapacidad || "").toLowerCase();
       const idTxt = String(x?.idIncapacidad || "");
-      return (
-        nombre.includes(q) ||
-        desc.includes(q) ||
-        tipo.includes(q) ||
-        estado.includes(q) ||
-        idTxt.includes(q)
-      );
+      return nombre.includes(q) || desc.includes(q) || tipo.includes(q) || estado.includes(q) || idTxt.includes(q);
     });
   }, [lista, busqueda, soloPendientes]);
+
+  const listaOrdenada = useMemo(() => {
+    const list = Array.isArray(listaFiltrada) ? listaFiltrada.slice() : [];
+
+    const asLower = (v) => String(v ?? "").toLowerCase();
+    const asNumber = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const asDate = (v) => {
+      const t = parseAnyDateToMs(v);
+      return Number.isFinite(t) ? t : 0;
+    };
+
+    const getter = (r) => {
+      if (sortKey === "ID") return asNumber(r?.idIncapacidad);
+      if (sortKey === "Colaborador") return asLower(`${r?.Nombre || ""} ${r?.Apellido1 || ""} ${r?.Apellido2 || ""}`.trim());
+      if (sortKey === "Estado") return asLower(r?.Estado);
+      if (sortKey === "Inicio") return asDate(r?.Fecha_Inicio);
+      return 0;
+    };
+
+    list.sort((a, b) => {
+      const va = getter(a);
+      const vb = getter(b);
+
+      if (typeof va === "number" && typeof vb === "number") return sortDir === "asc" ? va - vb : vb - va;
+
+      const sa = String(va ?? "");
+      const sb = String(vb ?? "");
+      return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
+    });
+
+    return list;
+  }, [listaFiltrada, sortKey, sortDir]);
+
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((listaOrdenada.length || 0) / PAGE_SIZE);
+    return n > 0 ? n : 1;
+  }, [listaOrdenada.length]);
+
+  const pagedLista = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return listaOrdenada.slice(start, start + PAGE_SIZE);
+  }, [listaOrdenada, page]);
 
   const onSeleccionar = (row) => {
     setSeleccion(row);
@@ -499,32 +516,22 @@ export default function Incapacidades() {
       // ✅ self-only NO manda Empleado_idEmpleado (backend lo resuelve)
       const payload = {
         ...(esSelfOnly ? {} : { Empleado_idEmpleado: empleadoIdFinal || undefined }),
-        Tipo_Incapacidad_idTipo_Incapacidad: Number(
-          formCrear.Tipo_Incapacidad_idTipo_Incapacidad || 0
-        ),
-        ...(periodoAuto
-          ? { Catalogo_Periodo_idCatalogo_Periodo: Number(periodoAuto) }
-          : {}),
+        Tipo_Incapacidad_idTipo_Incapacidad: Number(formCrear.Tipo_Incapacidad_idTipo_Incapacidad || 0),
+        ...(periodoAuto ? { Catalogo_Periodo_idCatalogo_Periodo: Number(periodoAuto) } : {}),
         Descripcion: String(formCrear.Descripcion || "").trim(),
         Fecha_Inicio: inicioDMY,
         Fecha_Fin: finDMY,
         Activo: 1,
       };
 
-      if (!payload.Tipo_Incapacidad_idTipo_Incapacidad)
-        throw new Error("Debe seleccionar el Tipo de incapacidad.");
-      if (!payload.Fecha_Inicio || !payload.Fecha_Fin)
-        throw new Error("Debe seleccionar Fecha inicio y Fecha fin.");
+      if (!payload.Tipo_Incapacidad_idTipo_Incapacidad) throw new Error("Debe seleccionar el Tipo de incapacidad.");
+      if (!payload.Fecha_Inicio || !payload.Fecha_Fin) throw new Error("Debe seleccionar Fecha inicio y Fecha fin.");
 
-      if (esSelfOnly && !empleadoIdFinal) {
-        throw new Error("No se pudo determinar su empleado. Verifique /empleados/me.");
-      }
+      if (esSelfOnly && !empleadoIdFinal) throw new Error("No se pudo determinar su empleado. Verifique /empleados/me.");
 
       const tInicio = Date.parse(inicioLocal);
       const tFin = Date.parse(finLocal);
-      if (!Number.isNaN(tInicio) && !Number.isNaN(tFin) && tFin < tInicio) {
-        throw new Error("La Fecha fin no puede ser menor que la Fecha inicio.");
-      }
+      if (!Number.isNaN(tInicio) && !Number.isNaN(tFin) && tFin < tInicio) throw new Error("La Fecha fin no puede ser menor que la Fecha inicio.");
 
       const resp = await crearIncapacidad(payload);
       setMensaje(resp?.message || "Incapacidad creada.");
@@ -605,10 +612,7 @@ export default function Incapacidades() {
     }
   };
 
-  const archivoUrl = useMemo(
-    () => buildFileUrl(detalle?.ArchivoActual?.Ruta_Almacenamiento),
-    [detalle]
-  );
+  const archivoUrl = useMemo(() => buildFileUrl(detalle?.ArchivoActual?.Ruta_Almacenamiento), [detalle]);
 
   const diasIncapacidad = useMemo(() => {
     if (!detalle?.Fecha_Inicio || !detalle?.Fecha_Fin) return 0;
@@ -634,54 +638,67 @@ export default function Incapacidades() {
         <div>
           <h4 className="mb-1">Incapacidades</h4>
           <div className="text-muted" style={{ fontSize: 13 }}>
-            Backend:{" "}
-            <b>
-              {String(api?.defaults?.baseURL || "").replace(/\/api$/, "") ||
-                window.location.origin}
-            </b>{" "}
-            · Adjuntos: <b>/uploads</b>
+            Gestión de incapacidades
           </div>
         </div>
 
         <div className="d-flex gap-2">
-          <Button variant="outline-secondary" onClick={cargarLista} disabled={cargando}>
-            <i className="bi bi-arrow-repeat me-1" /> Recargar
+          <Button variant="outline-secondary" className="dm-btn-outline-red" onClick={cargarLista} disabled={cargando}>
+            {cargando ? (
+              <span className="d-inline-flex align-items-center gap-2">
+                <Spinner size="sm" />
+                Recargando…
+              </span>
+            ) : (
+              <>
+                <i className="bi bi-arrow-repeat me-1" /> Recargar
+              </>
+            )}
           </Button>
-          {puedeCrear && (
-            <Button variant="primary" onClick={() => setShowCrear(true)}>
+
+          {puedeCrear ? (
+            <Button
+              variant="primary"
+              onClick={() => {
+                setError("");
+                setMensaje("");
+                setShowCrear(true);
+              }}
+            >
               <i className="bi bi-plus-lg me-1" /> Nueva
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {error && (
-        <Alert variant="danger" className="py-2">
-          {error}
-        </Alert>
-      )}
-      {mensaje && (
-        <Alert variant="success" className="py-2">
-          {mensaje}
-        </Alert>
-      )}
+      {error ? <Alert variant="danger">{error}</Alert> : null}
+      {mensaje ? <Alert variant="success">{mensaje}</Alert> : null}
 
       <Row className="g-3">
+        {/* LISTADO */}
         <Col lg={5} xl={4}>
-          <Card className="shadow-sm">
+          <Card className="shadow-sm border-0">
             <Card.Header className="bg-white">
               <div className="d-flex gap-2 align-items-center">
                 <Form.Control
                   placeholder="Buscar (nombre, estado, tipo, descripción, id)..."
                   value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
+                  onChange={(e) => {
+                    setBusqueda(e.target.value);
+                    setPage(1);
+                    resetListScroll();
+                  }}
                 />
                 <Form.Check
                   type="switch"
                   id="soloPendientes"
                   label="Pendientes"
                   checked={soloPendientes}
-                  onChange={(e) => setSoloPendientes(e.target.checked)}
+                  onChange={(e) => {
+                    setSoloPendientes(e.target.checked);
+                    setPage(1);
+                    resetListScroll();
+                  }}
                 />
               </div>
             </Card.Header>
@@ -692,90 +709,132 @@ export default function Incapacidades() {
                   <Spinner size="sm" /> Cargando...
                 </div>
               ) : (
-                <div style={{ maxHeight: "70vh", overflow: "auto" }}>
-                  <Table hover responsive className="mb-0">
-                    <thead className="table-light">
-                      <tr>
-                        {esAdmin && <th style={{ width: 70 }}>ID</th>}
-                        <th>{esSelfOnly ? "Mi registro" : "Colaborador"}</th>
-                        <th>Estado</th>
-                        <th style={{ width: 140 }}>Inicio</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {listaFiltrada.length === 0 ? (
+                <>
+                  <div ref={listWrapRef} style={{ maxHeight: "70vh", overflowY: "auto" }}>
+                    <Table hover responsive className="mb-0">
+                      <thead className="table-light">
                         <tr>
-                          <td colSpan={esAdmin ? 4 : 3} className="text-muted p-3">
-                            No hay registros.
-                          </td>
+                          {esAdmin ? (
+                            <th role="button" onClick={() => toggleSort("ID")} style={{ width: 70 }} className="text-nowrap">
+                              ID {sortIcon("ID")}
+                            </th>
+                          ) : null}
+
+                          <th role="button" onClick={() => toggleSort("Colaborador")} className="text-nowrap">
+                            {esSelfOnly ? "Mi registro" : "Colaborador"} {sortIcon("Colaborador")}
+                          </th>
+
+                          <th role="button" onClick={() => toggleSort("Estado")} className="text-nowrap">
+                            Estado {sortIcon("Estado")}
+                          </th>
+
+                          <th role="button" onClick={() => toggleSort("Inicio")} style={{ width: 140 }} className="text-nowrap">
+                            Inicio {sortIcon("Inicio")}
+                          </th>
                         </tr>
-                      ) : (
-                        listaFiltrada.map((x) => {
-                          const activo =
-                            Number(seleccion?.idIncapacidad) === Number(x?.idIncapacidad);
-                          return (
-                            <tr
-                              key={x.idIncapacidad}
-                              style={{
-                                cursor: "pointer",
-                                background: activo ? "#f8f9fa" : undefined,
-                              }}
-                              onClick={() => onSeleccionar(x)}
-                            >
-                              {esAdmin && <td className="fw-bold">{x.idIncapacidad}</td>}
-                              <td>
-                                <div className="fw-semibold">
-                                  {`${x?.Nombre || ""} ${x?.Apellido1 || ""} ${x?.Apellido2 || ""}`
-                                    .trim() || "—"}
-                                </div>
-                                <div className="text-muted" style={{ fontSize: 12 }}>
-                                  {x?.TipoIncapacidad || "—"} · {x?.Descripcion || ""}
-                                </div>
-                              </td>
-                              <td>{estadoBadge(x?.Estado)}</td>
-                              <td style={{ fontSize: 12 }}>{fmtDate(x?.Fecha_Inicio)}</td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </Table>
-                </div>
+                      </thead>
+
+                      <tbody>
+                        {pagedLista.length === 0 ? (
+                          <tr>
+                            <td colSpan={esAdmin ? 4 : 3} className="text-muted p-3">
+                              No hay registros.
+                            </td>
+                          </tr>
+                        ) : (
+                          pagedLista.map((x) => {
+                            const activo = Number(seleccion?.idIncapacidad) === Number(x?.idIncapacidad);
+                            const nombreRow =
+                              `${x?.Nombre || ""} ${x?.Apellido1 || ""} ${x?.Apellido2 || ""}`.trim() || "—";
+
+                            return (
+                              <tr
+                                key={x.idIncapacidad}
+                                style={{ cursor: "pointer", background: activo ? "#f8f9fa" : undefined }}
+                                onClick={() => onSeleccionar(x)}
+                              >
+                                {esAdmin ? <td className="fw-bold">{x.idIncapacidad}</td> : null}
+
+                                <td style={{ minWidth: 220 }}>
+                                  <div className="fw-semibold">{nombreRow}</div>
+                                  <div className="text-muted" style={{ fontSize: 12 }}>
+                                    {x?.TipoIncapacidad || "—"} · {x?.Descripcion || ""}
+                                  </div>
+                                </td>
+
+                                <td>{estadoBadge(x?.Estado)}</td>
+
+                                <td style={{ fontSize: 12 }} className="text-nowrap">
+                                  {fmtDate(x?.Fecha_Inicio)}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </Table>
+                  </div>
+
+                  <div className="d-flex align-items-center justify-content-between px-3 py-2 border-top bg-white">
+                    <div className="text-muted small">
+                      {`${listaOrdenada.length} registro(s) • Página ${page} de ${totalPages} • ${PAGE_SIZE} por página`}
+                    </div>
+
+                    <div className="d-flex align-items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline-secondary"
+                        className="dm-btn-outline-red"
+                        onClick={() => goToPage(page - 1, totalPages)}
+                        disabled={page <= 1}
+                      >
+                        Anterior
+                      </Button>
+
+                      <Form.Select size="sm" value={page} onChange={(e) => goToPage(e.target.value, totalPages)} style={{ width: 130, height: 36 }}>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                          <option key={p} value={p}>
+                            Página {p}
+                          </option>
+                        ))}
+                      </Form.Select>
+
+                      <Button
+                        size="sm"
+                        variant="outline-secondary"
+                        className="dm-btn-outline-red"
+                        onClick={() => goToPage(page + 1, totalPages)}
+                        disabled={page >= totalPages}
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </Card.Body>
           </Card>
         </Col>
 
+        {/* DETALLE */}
         <Col lg={7} xl={8}>
-          <Card className="shadow-sm">
+          <Card className="shadow-sm border-0">
             <Card.Header className="bg-white d-flex align-items-center justify-content-between">
               <div className="d-flex align-items-center gap-2">
                 <span className="fw-bold">Detalle</span>
                 {detalle?.Estado ? <span>{estadoBadge(detalle.Estado)}</span> : null}
               </div>
 
-              <div className="d-flex gap-2">
-                {esValidador && (
-                  <>
-                    <Button
-                      variant="success"
-                      onClick={() => setShowValidar(true)}
-                      disabled={!puedeAccionarEstado}
-                    >
-                      <i className="bi bi-check2-circle me-1" />
-                      Validar
-                    </Button>
-                    <Button
-                      variant="danger"
-                      onClick={() => setShowRechazar(true)}
-                      disabled={!puedeAccionarEstado}
-                    >
-                      <i className="bi bi-x-circle me-1" />
-                      Rechazar
-                    </Button>
-                  </>
-                )}
-              </div>
+              {esValidador ? (
+                <div className="d-flex gap-2">
+                  <Button variant="success" onClick={() => setShowValidar(true)} disabled={!puedeAccionarEstado}>
+                    <i className="bi bi-check2-circle me-1" /> Validar
+                  </Button>
+                  <Button variant="danger" onClick={() => setShowRechazar(true)} disabled={!puedeAccionarEstado}>
+                    <i className="bi bi-x-circle me-1" /> Rechazar
+                  </Button>
+                </div>
+              ) : null}
             </Card.Header>
 
             <Card.Body>
@@ -790,22 +849,21 @@ export default function Incapacidades() {
               ) : (
                 <>
                   <Row className="g-3">
-                    {esAdmin && (
+                    {esAdmin ? (
                       <Col md={4}>
                         <div className="text-muted" style={{ fontSize: 12 }}>
                           ID
                         </div>
                         <div className="fw-bold">{detalle.idIncapacidad}</div>
                       </Col>
-                    )}
+                    ) : null}
 
                     <Col md={esAdmin ? 8 : 12}>
                       <div className="text-muted" style={{ fontSize: 12 }}>
                         Colaborador
                       </div>
                       <div className="fw-semibold">
-                        {`${detalle?.Nombre || ""} ${detalle?.Apellido1 || ""} ${detalle?.Apellido2 || ""}`
-                          .trim() || "—"}
+                        {`${detalle?.Nombre || ""} ${detalle?.Apellido1 || ""} ${detalle?.Apellido2 || ""}`.trim() || "—"}
                       </div>
                     </Col>
 
@@ -815,6 +873,7 @@ export default function Incapacidades() {
                       </div>
                       <div>{detalle?.TipoIncapacidad || "—"}</div>
                     </Col>
+
                     <Col md={6}>
                       <div className="text-muted" style={{ fontSize: 12 }}>
                         Días
@@ -828,6 +887,7 @@ export default function Incapacidades() {
                       </div>
                       <div>{detalle?.Descripcion || "—"}</div>
                     </Col>
+
                     <Col md={6}>
                       <div className="text-muted" style={{ fontSize: 12 }}>
                         Estado
@@ -841,6 +901,7 @@ export default function Incapacidades() {
                       </div>
                       <div>{fmtDate(detalle?.Fecha_Inicio)}</div>
                     </Col>
+
                     <Col md={6}>
                       <div className="text-muted" style={{ fontSize: 12 }}>
                         Fecha fin
@@ -854,9 +915,7 @@ export default function Incapacidades() {
                   <Row className="g-3 align-items-end">
                     <Col lg={6}>
                       <Form.Group controlId="archivo">
-                        <Form.Label className="fw-semibold">
-                          Adjuntar/Actualizar comprobante
-                        </Form.Label>
+                        <Form.Label className="fw-semibold">Adjuntar/Actualizar comprobante</Form.Label>
                         <Form.Control
                           type="file"
                           accept=".pdf,.png,application/pdf,image/png"
@@ -868,21 +927,16 @@ export default function Incapacidades() {
                         </div>
                       </Form.Group>
                     </Col>
+
                     <Col lg="auto">
-                      <Button
-                        variant="primary"
-                        onClick={onSubirArchivo}
-                        disabled={!puedeSubirArchivo || subiendoArchivo || !archivo}
-                      >
+                      <Button variant="primary" onClick={onSubirArchivo} disabled={!puedeSubirArchivo || subiendoArchivo || !archivo}>
                         {subiendoArchivo ? (
                           <>
-                            <Spinner size="sm" className="me-2" />
-                            Subiendo...
+                            <Spinner size="sm" className="me-2" /> Subiendo...
                           </>
                         ) : (
                           <>
-                            <i className="bi bi-upload me-1" />
-                            Subir
+                            <i className="bi bi-upload me-1" /> Subir
                           </>
                         )}
                       </Button>
@@ -891,65 +945,42 @@ export default function Incapacidades() {
 
                   <div className="mt-3">
                     <div className="fw-semibold mb-2">Archivo actual</div>
+
                     {detalle?.ArchivoActual ? (
                       <Card className="bg-light border-0">
                         <Card.Body className="py-2">
                           <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
                             <div style={{ minWidth: 220 }}>
-                              <div className="fw-semibold">
-                                {detalle.ArchivoActual.Nombre_Original}
-                              </div>
+                              <div className="fw-semibold">{detalle.ArchivoActual.Nombre_Original}</div>
                               <div className="text-muted" style={{ fontSize: 12 }}>
-                                {detalle.ArchivoActual.MimeType} ·{" "}
-                                {detalle.ArchivoActual.TamanoBytes} bytes · v
-                                {detalle.ArchivoActual.Version}
+                                {detalle.ArchivoActual.MimeType} · {detalle.ArchivoActual.TamanoBytes} bytes · v{detalle.ArchivoActual.Version}
                               </div>
                             </div>
+
                             <div className="d-flex gap-2">
-                              {archivoUrl && (
-                                <Button
-                                  variant="outline-dark"
-                                  size="sm"
-                                  onClick={() =>
-                                    window.open(archivoUrl, "_blank", "noopener,noreferrer")
-                                  }
-                                >
+                              {archivoUrl ? (
+                                <Button variant="outline-dark" size="sm" onClick={() => window.open(archivoUrl, "_blank", "noopener,noreferrer")}>
                                   <i className="bi bi-box-arrow-up-right me-1" /> Abrir
                                 </Button>
-                              )}
+                              ) : null}
                             </div>
                           </div>
 
-                          {archivoUrl &&
-                            String(detalle.ArchivoActual.MimeType || "").includes("pdf") && (
-                              <div className="mt-3">
-                                <iframe
-                                  title="preview-pdf"
-                                  src={archivoUrl}
-                                  style={{
-                                    width: "100%",
-                                    height: 420,
-                                    border: "1px solid #dee2e6",
-                                    borderRadius: 8,
-                                  }}
-                                />
-                              </div>
-                            )}
+                          {archivoUrl && String(detalle.ArchivoActual.MimeType || "").includes("pdf") ? (
+                            <div className="mt-3">
+                              <iframe
+                                title="preview-pdf"
+                                src={archivoUrl}
+                                style={{ width: "100%", height: 420, border: "1px solid #dee2e6", borderRadius: 8 }}
+                              />
+                            </div>
+                          ) : null}
 
-                          {archivoUrl &&
-                            String(detalle.ArchivoActual.MimeType || "").startsWith("image/") && (
-                              <div className="mt-3">
-                                <img
-                                  src={archivoUrl}
-                                  alt="preview"
-                                  style={{
-                                    maxWidth: "100%",
-                                    borderRadius: 8,
-                                    border: "1px solid #dee2e6",
-                                  }}
-                                />
-                              </div>
-                            )}
+                          {archivoUrl && String(detalle.ArchivoActual.MimeType || "").startsWith("image/") ? (
+                            <div className="mt-3">
+                              <img src={archivoUrl} alt="preview" style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid #dee2e6" }} />
+                            </div>
+                          ) : null}
                         </Card.Body>
                       </Card>
                     ) : (
@@ -963,20 +994,18 @@ export default function Incapacidades() {
         </Col>
       </Row>
 
+      {/* MODAL CREAR */}
       <Modal show={showCrear} onHide={() => setShowCrear(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Nueva incapacidad</Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          <Alert variant="info" className="py-2" style={{ fontSize: 13 }}>
-            Use el calendario. Se enviará al backend como <b>dd/mm/yyyy</b>.
-          </Alert>
 
-          {cargandoOpciones && (
+        <Modal.Body>
+          {cargandoOpciones ? (
             <div className="d-flex align-items-center gap-2 text-muted mb-2">
               <Spinner size="sm" /> Cargando opciones...
             </div>
-          )}
+          ) : null}
 
           <Form>
             <Row className="g-3">
@@ -996,15 +1025,11 @@ export default function Incapacidades() {
                   ) : empleados.length > 0 ? (
                     <Form.Select
                       value={formCrear.Empleado_idEmpleado}
-                      onChange={(e) =>
-                        setFormCrear((s) => ({ ...s, Empleado_idEmpleado: e.target.value }))
-                      }
+                      onChange={(e) => setFormCrear((s) => ({ ...s, Empleado_idEmpleado: e.target.value }))}
                     >
                       <option value="">Seleccione...</option>
                       {empleados.map((emp) => {
-                        const id = Number(
-                          pickId(emp, ["idEmpleado", "IdEmpleado", "id", "Id", "Empleado_idEmpleado"])
-                        );
+                        const id = Number(pickId(emp, ["idEmpleado", "IdEmpleado", "id", "Id", "Empleado_idEmpleado"]));
                         const label = normalizarNombreEmpleado(emp) || `Empleado ${id}`;
                         return (
                           <option key={id} value={id}>
@@ -1016,9 +1041,7 @@ export default function Incapacidades() {
                   ) : (
                     <Form.Control
                       value={formCrear.Empleado_idEmpleado}
-                      onChange={(e) =>
-                        setFormCrear((s) => ({ ...s, Empleado_idEmpleado: e.target.value }))
-                      }
+                      onChange={(e) => setFormCrear((s) => ({ ...s, Empleado_idEmpleado: e.target.value }))}
                       placeholder="Ej: 1"
                     />
                   )}
@@ -1031,12 +1054,7 @@ export default function Incapacidades() {
                   {tiposIncapacidad.length > 0 ? (
                     <Form.Select
                       value={formCrear.Tipo_Incapacidad_idTipo_Incapacidad}
-                      onChange={(e) =>
-                        setFormCrear((s) => ({
-                          ...s,
-                          Tipo_Incapacidad_idTipo_Incapacidad: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setFormCrear((s) => ({ ...s, Tipo_Incapacidad_idTipo_Incapacidad: e.target.value }))}
                     >
                       <option value="">Seleccione...</option>
                       {tiposIncapacidad.map((t) => {
@@ -1062,12 +1080,7 @@ export default function Incapacidades() {
                     <Form.Control
                       type="number"
                       value={formCrear.Tipo_Incapacidad_idTipo_Incapacidad}
-                      onChange={(e) =>
-                        setFormCrear((s) => ({
-                          ...s,
-                          Tipo_Incapacidad_idTipo_Incapacidad: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setFormCrear((s) => ({ ...s, Tipo_Incapacidad_idTipo_Incapacidad: e.target.value }))}
                     />
                   )}
                 </Form.Group>
@@ -1081,9 +1094,7 @@ export default function Incapacidades() {
                       const id = getPeriodoIdFromAnyDate(formCrear.Fecha_Inicio, periodos);
                       if (!id) return "No determinado (se calculará en el backend)";
                       const p = (periodos || []).find(
-                        (x) =>
-                          String(pickId(x, ["idCatalogo_Periodo", "idPeriodo", "id", "Id"])) ===
-                          String(id)
+                        (x) => String(pickId(x, ["idCatalogo_Periodo", "idPeriodo", "id", "Id"])) === String(id)
                       );
                       const a = pickDesc(p, ["fechaInicio", "Fecha_Inicio", "FechaInicio"]);
                       const b = pickDesc(p, ["fechaFin", "Fecha_Fin", "FechaFin"]);
@@ -1116,9 +1127,7 @@ export default function Incapacidades() {
                       setFormCrear((s) => ({
                         ...s,
                         Fecha_Inicio: v,
-                        Catalogo_Periodo_idCatalogo_Periodo:
-                          getPeriodoIdFromAnyDate(v, periodos) ||
-                          s.Catalogo_Periodo_idCatalogo_Periodo,
+                        Catalogo_Periodo_idCatalogo_Periodo: getPeriodoIdFromAnyDate(v, periodos) || s.Catalogo_Periodo_idCatalogo_Periodo,
                       }));
                     }}
                   />
@@ -1139,6 +1148,7 @@ export default function Incapacidades() {
             </Row>
           </Form>
         </Modal.Body>
+
         <Modal.Footer>
           <Button variant="outline-secondary" onClick={() => setShowCrear(false)} disabled={creando}>
             Cancelar
@@ -1155,6 +1165,7 @@ export default function Incapacidades() {
         </Modal.Footer>
       </Modal>
 
+      {/* MODAL VALIDAR */}
       <Modal
         show={showValidar}
         onHide={() => {
@@ -1206,6 +1217,7 @@ export default function Incapacidades() {
         </Modal.Footer>
       </Modal>
 
+      {/* MODAL RECHAZAR */}
       <Modal
         show={showRechazar}
         onHide={() => {
@@ -1234,11 +1246,7 @@ export default function Incapacidades() {
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button
-            variant="outline-secondary"
-            onClick={() => setShowRechazar(false)}
-            disabled={procesando}
-          >
+          <Button variant="outline-secondary" onClick={() => setShowRechazar(false)} disabled={procesando}>
             Cancelar
           </Button>
           <Button variant="danger" onClick={onRechazar} disabled={procesando}>

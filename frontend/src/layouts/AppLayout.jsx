@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import Menu from "../components/Menu";
 
@@ -29,6 +29,11 @@ export default function AppLayout() {
   const token = localStorage.getItem("token");
   const user = leerUsuarioDesdeStorage();
 
+  const [menuCollapsed, setMenuCollapsed] = useState(false);
+
+  const MENU_W = 280;
+  const MENU_W_COLLAPSED = 84;
+
   const onLogout = () => {
     limpiarSesion();
     navigate("/login", { replace: true });
@@ -50,18 +55,26 @@ export default function AppLayout() {
   }, [token, user, navigate, location.pathname]);
 
   return (
-    <div className="app-shell" style={{ display: "flex", minHeight: "100vh" }}>
-      <Menu user={user} onLogout={onLogout} />
-      <main
-        className="app-content flex-grow-1"
+    <div className="d-flex min-vh-100 bg-body">
+      {/* SIDEBAR */}
+      <aside
+        className="bg-white border-end flex-shrink-0"
         style={{
-          backgroundColor: "var(--dm-gray-light)",
-          padding: "2rem",
-          overflowY: "auto",
-          maxHeight: "100vh",
+          width: menuCollapsed ? MENU_W_COLLAPSED : MENU_W,
+          transition: "width .18s ease",
         }}
       >
-        <div className="container-fluid p-0">
+        <Menu
+          user={user}
+          onLogout={onLogout}
+          collapsed={menuCollapsed}
+          onToggleCollapsed={() => setMenuCollapsed((v) => !v)}
+        />
+      </aside>
+
+      {/* CONTENT */}
+      <main className="flex-grow-1 overflow-auto">
+        <div className="container-fluid py-3 py-lg-4 px-3 px-lg-4">
           <Outlet />
         </div>
       </main>

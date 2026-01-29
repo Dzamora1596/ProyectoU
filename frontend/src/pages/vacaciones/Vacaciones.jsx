@@ -123,13 +123,7 @@ function asInputDate(v) {
 }
 
 function getEmpleadoDisplay(v) {
-  return (
-    v?.EmpleadoNombre ||
-    v?.NombreEmpleado ||
-    v?.empleadoNombre ||
-    v?.nombreEmpleado ||
-    "—"
-  );
+  return v?.EmpleadoNombre || v?.NombreEmpleado || v?.empleadoNombre || v?.nombreEmpleado || "—";
 }
 
 function ordenarPendientesPrimero(arr) {
@@ -351,10 +345,7 @@ export default function Vacaciones({ mode = "listado" }) {
       if (feriados.length) {
         setError(
           `${e2?.message || "No se pudo solicitar"} (Feriados en rango: ${feriados
-            .map(
-              (f) =>
-                `${formatFecha(f?.Fecha)}${f?.Nombre ? ` (${f.Nombre})` : ""}`
-            )
+            .map((f) => `${formatFecha(f?.Fecha)}${f?.Nombre ? ` (${f.Nombre})` : ""}`)
             .join(", ")})`
         );
       } else {
@@ -400,9 +391,7 @@ export default function Vacaciones({ mode = "listado" }) {
   const listaFiltrada = useMemo(() => {
     const base = Array.isArray(vacaciones) ? vacaciones : [];
     if (estadoFiltro === "TODAS") return base;
-    return base.filter(
-      (v) => normalizeEstado(v?.EstadoDescripcion) === estadoFiltro
-    );
+    return base.filter((v) => normalizeEstado(v?.EstadoDescripcion) === estadoFiltro);
   }, [vacaciones, estadoFiltro]);
 
   const totalPages = Math.max(1, Math.ceil(listaFiltrada.length / pageSize));
@@ -412,20 +401,11 @@ export default function Vacaciones({ mode = "listado" }) {
   const pageItems = listaFiltrada.slice(start, end);
 
   const colSpanNoData =
-    (canVerIdVacaciones ? 1 : 0) +
-    1 +
-    (canVerEmpleadoId ? 1 : 0) +
-    1 +
-    1 +
-    1 +
-    1 +
-    1;
+    (canVerIdVacaciones ? 1 : 0) + 1 + (canVerEmpleadoId ? 1 : 0) + 1 + 1 + 1 + 1 + 1;
 
   // ✅ CAMBIO AQUÍ: SOLO Admin VE ID EN EL CAMPO "Empleado" DE NUEVA SOLICITUD
   const empleadoSesionLabel = saldo?.EmpleadoNombre
-    ? `${saldo.EmpleadoNombre}${
-        isAdmin && empleadoIdDesdeToken ? ` (ID: ${empleadoIdDesdeToken})` : ""
-      }`
+    ? `${saldo.EmpleadoNombre}${isAdmin && empleadoIdDesdeToken ? ` (ID: ${empleadoIdDesdeToken})` : ""}`
     : isAdmin && empleadoIdDesdeToken
     ? `ID: ${empleadoIdDesdeToken}`
     : "—";
@@ -435,35 +415,20 @@ export default function Vacaciones({ mode = "listado" }) {
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <div>
           <h3 style={{ margin: 0 }}>{titulo}</h3>
-          <div className="text-muted mt-1">Rol: {role || "No disponible"}</div>
+          Gestión de vacaciones
         </div>
         <div className="d-flex align-items-center gap-2">
-          <button
-            className="btn btn-dark"
-            onClick={refrescarTodo}
-            disabled={loading || loadingAction}
-          >
+          <button className="btn btn-dark" onClick={refrescarTodo} disabled={loading || loadingAction}>
             Recargar
           </button>
         </div>
       </div>
 
-      {toast ? (
-        <div className="alert alert-success" role="alert">
-          {toast}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="alert alert-danger" role="alert">
-          {error}
-        </div>
-      ) : null}
+      {toast ? <div className="alert alert-success">{toast}</div> : null}
+      {error ? <div className="alert alert-danger">{error}</div> : null}
 
       <div className="card mb-3">
-        <div className="card-header">
-          Saldo {saldo?.EmpleadoNombre ? `— ${saldo.EmpleadoNombre}` : ""}
-        </div>
+        <div className="card-header">Saldo {saldo?.EmpleadoNombre ? `— ${saldo.EmpleadoNombre}` : ""}</div>
         <div className="card-body">
           {loading ? (
             <div className="text-muted">Cargando...</div>
@@ -471,48 +436,34 @@ export default function Vacaciones({ mode = "listado" }) {
             <div className="row g-3">
               <div className="col-12 col-md-3">
                 <div className="text-muted">A Derecho</div>
-                <div className="fs-5 fw-bold">
-                  {Number(saldo.Vacaciones_a_Derecho ?? 0)}
-                </div>
+                <div className="fs-5 fw-bold">{Number(saldo.Vacaciones_a_Derecho ?? 0)}</div>
               </div>
               <div className="col-12 col-md-3">
                 <div className="text-muted">Disfrutadas (Aprobadas)</div>
-                <div className="fs-5 fw-bold">
-                  {Number(saldo.Vacaciones_Disfrutadas ?? 0)}
-                </div>
+                <div className="fs-5 fw-bold">{Number(saldo.Vacaciones_Disfrutadas ?? 0)}</div>
               </div>
               <div className="col-12 col-md-3">
                 <div className="text-muted">Pendientes</div>
-                <div className="fs-5 fw-bold">
-                  {Number(saldo.Vacaciones_Pendientes ?? 0)}
-                </div>
+                <div className="fs-5 fw-bold">{Number(saldo.Vacaciones_Pendientes ?? 0)}</div>
               </div>
               <div className="col-12 col-md-3">
                 <div className="text-muted">Disponibles</div>
-                <div className="fs-5 fw-bold">
-                  {Number(saldo.Vacaciones_Disponibles ?? 0)}
-                </div>
+                <div className="fs-5 fw-bold">{Number(saldo.Vacaciones_Disponibles ?? 0)}</div>
               </div>
 
               {"Vacaciones_Disponibles_Total" in (saldo || {}) ? (
                 <>
                   <div className="col-12 col-md-3">
                     <div className="text-muted">Disponibles (Acumuladas)</div>
-                    <div className="fs-5 fw-bold">
-                      {Number(saldo.Vacaciones_Disponibles_Total ?? 0)}
-                    </div>
+                    <div className="fs-5 fw-bold">{Number(saldo.Vacaciones_Disponibles_Total ?? 0)}</div>
                   </div>
                   <div className="col-12 col-md-3">
                     <div className="text-muted">A Derecho (Real)</div>
-                    <div className="fs-5 fw-bold">
-                      {Number(saldo.Vacaciones_a_Derecho_Real ?? 0)}
-                    </div>
+                    <div className="fs-5 fw-bold">{Number(saldo.Vacaciones_a_Derecho_Real ?? 0)}</div>
                   </div>
                   <div className="col-12 col-md-3">
                     <div className="text-muted">Disfrutadas (Total)</div>
-                    <div className="fs-5 fw-bold">
-                      {Number(saldo.Vacaciones_Disfrutadas_Total ?? 0)}
-                    </div>
+                    <div className="fs-5 fw-bold">{Number(saldo.Vacaciones_Disfrutadas_Total ?? 0)}</div>
                   </div>
                 </>
               ) : null}
@@ -521,16 +472,9 @@ export default function Vacaciones({ mode = "listado" }) {
             <div className="text-muted">Sin datos</div>
           )}
 
-          {saldoWarnings?.mensajeAcumulado ? (
-            <div className="alert alert-warning mt-3 mb-0">
-              {saldoWarnings.mensajeAcumulado}
-            </div>
-          ) : null}
-
+          {saldoWarnings?.mensajeAcumulado ? <div className="alert alert-warning mt-3 mb-0">{saldoWarnings.mensajeAcumulado}</div> : null}
           {saldoWarnings?.vacacionesAcumuladas?.mensaje ? (
-            <div className="alert alert-warning mt-3 mb-0">
-              {saldoWarnings.vacacionesAcumuladas.mensaje}
-            </div>
+            <div className="alert alert-warning mt-3 mb-0">{saldoWarnings.vacacionesAcumuladas.mensaje}</div>
           ) : null}
         </div>
       </div>
@@ -593,6 +537,7 @@ export default function Vacaciones({ mode = "listado" }) {
       <div className="card">
         <div className="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
           <span>Solicitudes</span>
+
           <div className="d-flex gap-2 align-items-center">
             {canAprobarRechazar ? (
               <>
@@ -609,22 +554,14 @@ export default function Vacaciones({ mode = "listado" }) {
                     </option>
                   ))}
                 </select>
-                <button
-                  className="btn btn-outline-dark"
-                  onClick={onAplicarEmpleadoTabla}
-                  disabled={loading || loadingAction}
-                >
+
+                <button className="btn btn-outline-dark" onClick={onAplicarEmpleadoTabla} disabled={loading || loadingAction}>
                   Aplicar
                 </button>
               </>
             ) : null}
 
-            <select
-              className="form-select"
-              value={estadoFiltro}
-              onChange={(e) => setEstadoFiltro(e.target.value)}
-              style={{ width: 220 }}
-            >
+            <select className="form-select" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} style={{ width: 220 }}>
               <option value="PENDIENTE">Pendientes</option>
               <option value="APROBADO">Aprobadas</option>
               <option value="RECHAZADO">Rechazadas</option>
@@ -658,6 +595,7 @@ export default function Vacaciones({ mode = "listado" }) {
                       <th className="text-end">Acciones</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {pageItems.length ? (
                       pageItems.map((v) => (
@@ -676,18 +614,10 @@ export default function Vacaciones({ mode = "listado" }) {
                           <td className="text-end">
                             {canAprobarRechazar ? (
                               <div className="d-inline-flex gap-2">
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  disabled={loadingAction}
-                                  onClick={() => onAprobar(v.idVacaciones)}
-                                >
+                                <button className="btn btn-primary btn-sm" disabled={loadingAction} onClick={() => onAprobar(v.idVacaciones)}>
                                   Aprobar
                                 </button>
-                                <button
-                                  className="btn btn-dark btn-sm"
-                                  disabled={loadingAction}
-                                  onClick={() => onRechazar(v.idVacaciones)}
-                                >
+                                <button className="btn btn-dark btn-sm" disabled={loadingAction} onClick={() => onRechazar(v.idVacaciones)}>
                                   Rechazar
                                 </button>
                               </div>
@@ -714,21 +644,13 @@ export default function Vacaciones({ mode = "listado" }) {
                 </div>
 
                 <div className="d-flex gap-2">
-                  <button
-                    className="btn btn-outline-dark btn-sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={safePage <= 1}
-                  >
+                  <button className="btn btn-outline-dark btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}>
                     Anterior
                   </button>
                   <div className="text-muted small d-flex align-items-center">
                     Página {safePage} / {totalPages}
                   </div>
-                  <button
-                    className="btn btn-outline-dark btn-sm"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safePage >= totalPages}
-                  >
+                  <button className="btn btn-outline-dark btn-sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>
                     Siguiente
                   </button>
                 </div>

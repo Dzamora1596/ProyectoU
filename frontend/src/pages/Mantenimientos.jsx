@@ -1,4 +1,4 @@
-//Mantenimientos.jsx
+// Mantenimientos.jsx
 import { Link } from "react-router-dom";
 import "../styles/autenticar.css";
 
@@ -75,10 +75,10 @@ export default function Mantenimientos({ user, onLogout }) {
           <Link to="/mantenimientos/horarios">
             <button className="auth-button" type="button">Mantenimiento Horarios</button>
           </Link>
+
           <Link to="/mantenimientos/asistencias">
             <button className="auth-button" type="button">Mantenimiento Asistencias</button>
           </Link>
-
         </div>
       </div>
     </div>

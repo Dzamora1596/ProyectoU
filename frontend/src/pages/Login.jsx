@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Container, Card, Form, Button, Alert, Spinner } from "react-bootstrap";
 import cliente from "../api/axios";
 
-
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -24,6 +23,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     const u = usuario.trim();
     const p = password;
 
@@ -46,13 +46,12 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
-    
-
       const destino = location.state?.from || "/inicio";
       navigate(destino, { replace: true });
     } catch (err) {
       const status = err?.response?.status;
       const msgBackend = err?.response?.data?.mensaje;
+
       if (msgBackend) {
         setError(msgBackend);
       } else if (status) {
@@ -66,89 +65,85 @@ export default function Login() {
   };
 
   return (
-    <Container
-      fluid
-      className="d-flex justify-content-center align-items-center"
-      style={{ minHeight: "100vh", position: "relative", overflow: "hidden", padding: 0 }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          zIndex: 0,
-        }}
-      >
+    <div className="min-vh-100 position-relative d-flex align-items-center">
+      <div className="position-absolute top-0 start-0 w-100 h-100" style={{ zIndex: 0 }}>
         <img
           src="/Login.png"
           alt="Inicio"
+          className="w-100 h-100"
+          style={{ objectFit: "cover", filter: "contrast(1.05) saturate(1.05)" }}
+        />
+        <div
+          className="position-absolute top-0 start-0 w-100 h-100"
           style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover", 
-            opacity: 0.8,
+            background:
+              "linear-gradient(135deg, rgba(11,11,12,0.70) 0%, rgba(11,11,12,0.25) 55%, rgba(193,18,31,0.18) 100%)",
           }}
         />
       </div>
 
-      <Card 
-        style={{ 
-          width: "420px", 
-          zIndex: 1, 
-          backgroundColor: "rgba(255, 255, 255, 0.85)", 
-          backdropFilter: "blur(5px)", 
-          border: "none"
-        }} 
-        className="shadow"
-      >
-        <Card.Body className="p-4">
-          <h3 className="mb-3 text-center">Iniciar sesión</h3>
+      <Container fluid className="position-relative" style={{ zIndex: 1 }}>
+        <div className="row justify-content-center">
+          <div className="col-12 col-sm-10 col-md-7 col-lg-5 col-xl-4">
+            <Card className="shadow-lg border-0">
+              <Card.Body className="p-4 p-md-5">
+                <div className="text-center mb-4">
+                  <div className="fw-bold text-dark" style={{ fontSize: "1.35rem" }}>
+                    Iniciar sesión
+                  </div>
+                  <div className="text-muted small">Acceso al sistema</div>
+                </div>
 
-          {error && <Alert variant="danger">{error}</Alert>}
+                {error && (
+                  <Alert variant="danger" className="dm-alert-accent">
+                    {error}
+                  </Alert>
+                )}
 
-          <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-3" controlId="usuario">
-              <Form.Label>Usuario</Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="Ingrese su usuario"
-                value={usuario}
-                onChange={(e) => setUsuario(e.target.value)}
-                autoComplete="username"
-                disabled={cargando}
-              />
-            </Form.Group>
+                <Form onSubmit={handleSubmit}>
+                  <Form.Group className="mb-3" controlId="usuario">
+                    <Form.Label className="fw-semibold">Usuario</Form.Label>
+                    <Form.Control
+                      type="text"
+                      placeholder="Ingrese su usuario"
+                      value={usuario}
+                      onChange={(e) => setUsuario(e.target.value)}
+                      autoComplete="username"
+                      disabled={cargando}
+                    />
+                  </Form.Group>
 
-            <Form.Group className="mb-3" controlId="password">
-              <Form.Label>Contraseña</Form.Label>
-              <Form.Control
-                type="password"
-                placeholder="Ingrese su contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                disabled={cargando}
-              />
-            </Form.Group>
+                  <Form.Group className="mb-3" controlId="password">
+                    <Form.Label className="fw-semibold">Contraseña</Form.Label>
+                    <Form.Control
+                      type="password"
+                      placeholder="Ingrese su contraseña"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      disabled={cargando}
+                    />
+                  </Form.Group>
 
-            <Button type="submit" className="w-100" variant="primary" disabled={cargando}>
-              {cargando ? (
-                <>
-                  <Spinner size="sm" className="me-2" /> Ingresando...
-                </>
-              ) : (
-                "Ingresar"
-              )}
-            </Button>
-          </Form>
+                  <Button type="submit" className="w-100" variant="primary" disabled={cargando}>
+                    {cargando ? (
+                      <span className="d-inline-flex align-items-center justify-content-center gap-2">
+                        <Spinner size="sm" /> Ingresando...
+                      </span>
+                    ) : (
+                      "Ingresar"
+                    )}
+                  </Button>
+                </Form>
 
-          <div className="text-muted mt-3" style={{ fontSize: 13 }}>
-            Sistema de Gestión de Planillas - Proyecto de Graduación
+                <div className="text-muted mt-4 small text-center">
+                  Sistema de Gestión de Planillas - Proyecto de Graduación
+                </div>
+              </Card.Body>
+            </Card>
           </div>
-        </Card.Body>
-      </Card>
-    </Container>
+        </div>
+      </Container>
+    </div>
   );
 }

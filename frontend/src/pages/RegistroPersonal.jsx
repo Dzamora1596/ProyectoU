@@ -1,4 +1,3 @@
-// frontend/src/pages/RegistroPersonal.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -12,9 +11,6 @@ import {
   Alert,
 } from "react-bootstrap";
 
-import { DataGrid } from "@mui/x-data-grid";
-import { Box } from "@mui/material";
-
 import {
   listarRegistroPersonal,
   obtenerRegistroPersonalPorId,
@@ -24,6 +20,7 @@ import {
 } from "@/services/registroPersonalService";
 
 import { obtenerCatalogosRegistroPersonal } from "@/services/catalogosService";
+
 function toBool(v) {
   if (v === true || v === 1 || v === "1") return true;
   const s = String(v ?? "").toLowerCase().trim();
@@ -82,7 +79,7 @@ export default function RegistroPersonal() {
   const [activo, setActivo] = useState("");
 
   const [showModal, setShowModal] = useState(false);
-  const [mode, setMode] = useState("create"); // create | edit
+  const [mode, setMode] = useState("create");
   const [editingIdEmpleado, setEditingIdEmpleado] = useState(null);
 
   const [form, setForm] = useState(emptyForm());
@@ -412,73 +409,6 @@ export default function RegistroPersonal() {
     [rows]
   );
 
-  const columns = useMemo(
-    () => [
-      {
-        field: "idEmpleado",
-        headerName: "Empleado",
-        width: 110,
-        sortable: true,
-        align: "center",
-        headerAlign: "center",
-      },
-      {
-        field: "idPersona",
-        headerName: "Cédula",
-        width: 140,
-        sortable: true,
-        align: "center",
-        headerAlign: "center",
-      },
-      { field: "nombreCompleto", headerName: "Nombre", flex: 1, minWidth: 260 },
-      {
-        field: "fechaIngresoFmt",
-        headerName: "Ingreso",
-        width: 130,
-        sortable: true,
-        align: "center",
-        headerAlign: "center",
-      },
-      {
-        field: "activoOk",
-        headerName: "Activo",
-        width: 110,
-        sortable: true,
-        align: "center",
-        headerAlign: "center",
-        renderCell: (params) => (
-          <Badge bg={params.value ? "success" : "secondary"} className="px-3 py-2">
-            {params.value ? "Sí" : "No"}
-          </Badge>
-        ),
-      },
-      {
-        field: "acciones",
-        headerName: "Acciones",
-        width: 240,
-        sortable: false,
-        filterable: false,
-        align: "center",
-        headerAlign: "center",
-        renderCell: (params) => (
-          <div className="d-flex gap-2 justify-content-center h-100 align-items-center">
-            <Button size="sm" variant="primary" onClick={() => onEditar(params.row.idEmpleado)}>
-              Editar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline-danger"
-              onClick={() => onDesactivar(params.row.idEmpleado)}
-            >
-              Desactivar
-            </Button>
-          </div>
-        ),
-      },
-    ],
-    [onEditar, onDesactivar]
-  );
-
   const setPersona = (key, value) =>
     setForm((prev) => ({ ...prev, persona: { ...prev.persona, [key]: value } }));
 
@@ -526,7 +456,7 @@ export default function RegistroPersonal() {
   return (
     <div className="container-fluid py-4" style={{ backgroundColor: "var(--dm-gray-bg)", minHeight: "100vh" }}>
       <div className="d-flex align-items-center justify-content-between mb-4">
-        <h3 className="m-0 text-marenco-black fw-bold">Registro Personal</h3>
+        <h3 className="m-0 fw-bold">Registro Personal</h3>
         <Button variant="primary" className="px-4" onClick={abrirCrear}>
           + Nuevo Empleado
         </Button>
@@ -538,7 +468,7 @@ export default function RegistroPersonal() {
         <Col md={6}>
           <InputGroup className="shadow-sm">
             <InputGroup.Text className="bg-white border-end-0">
-               <i className="bi bi-search"></i>
+              <i className="bi bi-search"></i>
             </InputGroup.Text>
             <Form.Control
               className="border-start-0"
@@ -578,37 +508,78 @@ export default function RegistroPersonal() {
 
       <div className="card border-0 shadow-sm overflow-hidden">
         <div className="card-body p-0">
-          <Box sx={{ width: "100%", height: 600 }}>
-            <DataGrid
-              rows={gridRows}
-              columns={columns}
-              loading={loading}
-              disableRowSelectionOnClick
-              pageSizeOptions={[10, 25, 50]}
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10, page: 0 } },
-              }}
-              getRowHeight={() => "auto"}
-              sx={{
-                border: "none",
-                "& .MuiDataGrid-columnHeaders": { 
-                  backgroundColor: "var(--dm-gray-light)",
-                  color: "var(--dm-black)",
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  fontSize: "0.75rem"
-                },
-                "& .MuiDataGrid-cell": { py: 1.5 },
-                "& .MuiDataGrid-footerContainer": { borderTop: "1px solid var(--dm-border-color)" }
-              }}
-            />
-          </Box>
+          <div style={{ width: "100%", height: 600 }}>
+            <div className="table-responsive">
+              <table className="table table-hover align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th className="text-center" style={{ width: 110 }}>Empleado</th>
+                    <th className="text-center" style={{ width: 140 }}>Cédula</th>
+                    <th>Nombre</th>
+                    <th className="text-center" style={{ width: 130 }}>Ingreso</th>
+                    <th className="text-center" style={{ width: 110 }}>Activo</th>
+                    <th className="text-center" style={{ width: 240 }}>Acciones</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {!loading && gridRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="text-center py-4 text-muted">
+                        Sin resultados
+                      </td>
+                    </tr>
+                  )}
+
+                  {gridRows.map((r) => (
+                    <tr key={r.idEmpleado}>
+                      <td className="text-center">{r.idEmpleado}</td>
+                      <td className="text-center">{r.idPersona}</td>
+                      <td style={{ minWidth: 260 }}>{r.nombreCompleto}</td>
+                      <td className="text-center">{r.fechaIngresoFmt}</td>
+                      <td className="text-center">
+                        <Badge bg={r.activoOk ? "success" : "secondary"} className="px-3 py-2">
+                          {r.activoOk ? "Sí" : "No"}
+                        </Badge>
+                      </td>
+                      <td className="text-center">
+                        <div className="d-flex gap-2 justify-content-center align-items-center">
+                          <Button size="sm" variant="primary" onClick={() => onEditar(r.idEmpleado)}>
+                            Editar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline-danger"
+                            onClick={() => onDesactivar(r.idEmpleado)}
+                          >
+                            Desactivar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="d-flex align-items-center justify-content-between px-3 py-2 border-top bg-white">
+              <div className="text-muted small">
+                {loading ? "Cargando..." : `${gridRows.length} registro(s)`}
+              </div>
+              {loading ? (
+                <div className="d-flex align-items-center gap-2">
+                  <Spinner size="sm" />
+                  <span className="small">Procesando…</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
 
       <Modal show={showModal} onHide={cerrarModal} size="lg" backdrop="static" centered className="dm-modal">
         <Modal.Header closeButton={!saving} className="bg-light">
-          <Modal.Title className="fw-bold text-marenco-black">
+          <Modal.Title className="fw-bold">
             {mode === "create"
               ? "Crear Nuevo Colaborador"
               : `Editando: Empleado #${editingIdEmpleado}`}
@@ -623,158 +594,158 @@ export default function RegistroPersonal() {
           )}
 
           <div className="mb-4">
-             <h5 className="text-marenco-red fw-bold mb-3 border-bottom pb-2">Información Personal</h5>
-             <Row className="g-3">
-               <Col md={4}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">Número de Cédula</Form.Label>
-                   <Form.Control
-                     value={form.persona.idPersona}
-                     onChange={(e) => setPersona("idPersona", e.target.value)}
-                     disabled={mode === "edit"}
-                     placeholder="0-0000-0000"
-                   />
-                 </Form.Group>
-               </Col>
+            <h5 className="fw-bold mb-3 border-bottom pb-2">Información Personal</h5>
+            <Row className="g-3">
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Número de Cédula</Form.Label>
+                  <Form.Control
+                    value={form.persona.idPersona}
+                    onChange={(e) => setPersona("idPersona", e.target.value)}
+                    disabled={mode === "edit"}
+                    placeholder="0-0000-0000"
+                  />
+                </Form.Group>
+              </Col>
 
-               <Col md={4}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">Género</Form.Label>
-                   <Form.Select
-                     value={form.persona.generoId}
-                     onChange={(e) => setPersona("generoId", e.target.value)}
-                     disabled={catsLoading}
-                   >
-                     <option value="">Seleccione...</option>
-                     {cats.generos.map((g) => (
-                       <option key={g.id} value={g.id}>{g.descripcion}</option>
-                     ))}
-                   </Form.Select>
-                 </Form.Group>
-               </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Género</Form.Label>
+                  <Form.Select
+                    value={form.persona.generoId}
+                    onChange={(e) => setPersona("generoId", e.target.value)}
+                    disabled={catsLoading}
+                  >
+                    <option value="">Seleccione...</option>
+                    {cats.generos.map((g) => (
+                      <option key={g.id} value={g.id}>{g.descripcion}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
 
-               <Col md={4}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">Hijos</Form.Label>
-                   <Form.Control
-                     type="number"
-                     value={form.persona.cantidadHijos}
-                     onChange={(e) => setPersona("cantidadHijos", e.target.value)}
-                     min={0}
-                   />
-                 </Form.Group>
-               </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Hijos</Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={form.persona.cantidadHijos}
+                    onChange={(e) => setPersona("cantidadHijos", e.target.value)}
+                    min={0}
+                  />
+                </Form.Group>
+              </Col>
 
-               <Col md={4}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">F. Nacimiento</Form.Label>
-                   <Form.Control
-                     type="date"
-                     value={form.persona.fechaNacimiento}
-                     onChange={(e) => setPersona("fechaNacimiento", e.target.value)}
-                   />
-                 </Form.Group>
-               </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">F. Nacimiento</Form.Label>
+                  <Form.Control
+                    type="date"
+                    value={form.persona.fechaNacimiento}
+                    onChange={(e) => setPersona("fechaNacimiento", e.target.value)}
+                  />
+                </Form.Group>
+              </Col>
 
-               <Col md={8}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">Nombre Completo</Form.Label>
-                   <Row className="g-2">
-                     <Col>
-                       <Form.Control
-                         placeholder="Nombre"
-                         value={form.persona.nombre}
-                         onChange={(e) => setPersona("nombre", e.target.value)}
-                       />
-                     </Col>
-                     <Col>
-                       <Form.Control
-                         placeholder="1er Apellido"
-                         value={form.persona.apellido1}
-                         onChange={(e) => setPersona("apellido1", e.target.value)}
-                       />
-                     </Col>
-                     <Col>
-                       <Form.Control
-                         placeholder="2do Apellido"
-                         value={form.persona.apellido2}
-                         onChange={(e) => setPersona("apellido2", e.target.value)}
-                       />
-                     </Col>
-                   </Row>
-                 </Form.Group>
-               </Col>
+              <Col md={8}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Nombre Completo</Form.Label>
+                  <Row className="g-2">
+                    <Col>
+                      <Form.Control
+                        placeholder="Nombre"
+                        value={form.persona.nombre}
+                        onChange={(e) => setPersona("nombre", e.target.value)}
+                      />
+                    </Col>
+                    <Col>
+                      <Form.Control
+                        placeholder="1er Apellido"
+                        value={form.persona.apellido1}
+                        onChange={(e) => setPersona("apellido1", e.target.value)}
+                      />
+                    </Col>
+                    <Col>
+                      <Form.Control
+                        placeholder="2do Apellido"
+                        value={form.persona.apellido2}
+                        onChange={(e) => setPersona("apellido2", e.target.value)}
+                      />
+                    </Col>
+                  </Row>
+                </Form.Group>
+              </Col>
 
-               <Col md={4}>
-                 <Form.Check
-                   className="mt-2 fw-bold"
-                   type="switch"
-                   label="Persona Habilitada"
-                   checked={!!form.persona.activo}
-                   onChange={(e) => setPersona("activo", e.target.checked)}
-                 />
-               </Col>
-             </Row>
+              <Col md={4}>
+                <Form.Check
+                  className="mt-2 fw-bold"
+                  type="switch"
+                  label="Persona Habilitada"
+                  checked={!!form.persona.activo}
+                  onChange={(e) => setPersona("activo", e.target.checked)}
+                />
+              </Col>
+            </Row>
           </div>
 
           <div className="mb-4">
-             <h5 className="text-marenco-red fw-bold mb-3 border-bottom pb-2">Detalles Laborales</h5>
-             <Row className="g-3">
-               <Col md={4}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">F. de Ingreso</Form.Label>
-                   <Form.Control
-                     type="date"
-                     value={form.empleado.fechaIngreso}
-                     onChange={(e) => setEmpleado("fechaIngreso", e.target.value)}
-                   />
-                 </Form.Group>
-               </Col>
+            <h5 className="fw-bold mb-3 border-bottom pb-2">Detalles Laborales</h5>
+            <Row className="g-3">
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">F. de Ingreso</Form.Label>
+                  <Form.Control
+                    type="date"
+                    value={form.empleado.fechaIngreso}
+                    onChange={(e) => setEmpleado("fechaIngreso", e.target.value)}
+                  />
+                </Form.Group>
+              </Col>
 
-               <Col md={4}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">Salario Bruto</Form.Label>
-                   <InputGroup>
-                     <InputGroup.Text>₡</InputGroup.Text>
-                     <Form.Control
-                       value={form.empleado.salario}
-                       onChange={(e) => setEmpleado("salario", e.target.value)}
-                     />
-                   </InputGroup>
-                 </Form.Group>
-               </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Salario Bruto</Form.Label>
+                  <InputGroup>
+                    <InputGroup.Text>₡</InputGroup.Text>
+                    <Form.Control
+                      value={form.empleado.salario}
+                      onChange={(e) => setEmpleado("salario", e.target.value)}
+                    />
+                  </InputGroup>
+                </Form.Group>
+              </Col>
 
-               <Col md={4}>
-                 <Form.Group>
-                   <Form.Label className="fw-semibold">Cadencia de Pago</Form.Label>
-                   <Form.Select
-                     value={form.empleado.cadenciaPagoId}
-                     onChange={(e) => setEmpleado("cadenciaPagoId", e.target.value)}
-                     disabled={catsLoading}
-                   >
-                     <option value="">Seleccione...</option>
-                     {cats.cadenciasPago.map((c) => (
-                       <option key={c.id} value={c.id}>{c.descripcion}</option>
-                     ))}
-                   </Form.Select>
-                 </Form.Group>
-               </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Cadencia de Pago</Form.Label>
+                  <Form.Select
+                    value={form.empleado.cadenciaPagoId}
+                    onChange={(e) => setEmpleado("cadenciaPagoId", e.target.value)}
+                    disabled={catsLoading}
+                  >
+                    <option value="">Seleccione...</option>
+                    {cats.cadenciasPago.map((c) => (
+                      <option key={c.id} value={c.id}>{c.descripcion}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
 
-               <Col md={12}>
-                 <Form.Check
-                   className="fw-bold"
-                   type="switch"
-                   label="Empleado en planilla activa"
-                   checked={!!form.empleado.activo}
-                   onChange={(e) => setEmpleado("activo", e.target.checked)}
-                 />
-               </Col>
-             </Row>
+              <Col md={12}>
+                <Form.Check
+                  className="fw-bold"
+                  type="switch"
+                  label="Empleado en planilla activa"
+                  checked={!!form.empleado.activo}
+                  onChange={(e) => setEmpleado("activo", e.target.checked)}
+                />
+              </Col>
+            </Row>
           </div>
 
           <div className="mb-4">
             <div className="d-flex align-items-center justify-content-between mb-3">
-              <h5 className="text-marenco-red fw-bold m-0">Contactos Telefónicos</h5>
+              <h5 className="fw-bold m-0">Contactos Telefónicos</h5>
               <Button variant="outline-primary" size="sm" className="fw-bold" onClick={addTelefono}>
                 + Añadir Línea
               </Button>
@@ -792,6 +763,7 @@ export default function RegistroPersonal() {
                   <Form.Select
                     value={t.tipoTelefonoId}
                     onChange={(e) => setTelefono(idx, "tipoTelefonoId", e.target.value)}
+                    disabled={catsLoading}
                   >
                     <option value="">Tipo de línea...</option>
                     {cats.tiposTelefono.map((tt) => (
@@ -822,7 +794,7 @@ export default function RegistroPersonal() {
 
           <div>
             <div className="d-flex align-items-center justify-content-between mb-3">
-              <h5 className="text-marenco-red fw-bold m-0">Correos Electrónicos</h5>
+              <h5 className="fw-bold m-0">Correos Electrónicos</h5>
               <Button variant="outline-primary" size="sm" className="fw-bold" onClick={addCorreo}>
                 + Añadir Email
               </Button>
@@ -840,6 +812,7 @@ export default function RegistroPersonal() {
                   <Form.Select
                     value={c.tipoCorreoId}
                     onChange={(e) => setCorreo(idx, "tipoCorreoId", e.target.value)}
+                    disabled={catsLoading}
                   >
                     <option value="">Uso de correo...</option>
                     {cats.tiposCorreo.map((tc) => (
@@ -856,10 +829,13 @@ export default function RegistroPersonal() {
                 </Col>
                 <Col md={1} className="text-end">
                   <Button
-                    variant="close"
+                    variant="link"
+                    className="text-danger p-0"
                     onClick={() => delCorreo(idx)}
                     disabled={(form.correos || []).length <= 1}
-                  />
+                  >
+                    Quitar
+                  </Button>
                 </Col>
               </Row>
             ))}
@@ -881,6 +857,7 @@ export default function RegistroPersonal() {
           </Button>
         </Modal.Footer>
       </Modal>
+
       <Modal show={showConfirm} onHide={cerrarConfirm} centered backdrop="static">
         <Modal.Header closeButton={!confirmLoading} className="border-0 pb-0">
           <Modal.Title className="text-danger fw-bold">Atención</Modal.Title>
@@ -888,10 +865,10 @@ export default function RegistroPersonal() {
 
         <Modal.Body className="py-4">
           <p className="fs-5 mb-1">¿Está seguro de desactivar al empleado?</p>
-          <p className="text-marenco-black fw-bold mb-3">ID Colaborador: #{idEmpleadoToDisable}</p>
-          <div className="alert alert-warning border-0 small m-0">
-          </div>
+          <p className="fw-bold mb-3">ID Colaborador: #{idEmpleadoToDisable}</p>
+          <div className="alert alert-warning border-0 small m-0"></div>
         </Modal.Body>
+
         <Modal.Footer className="border-0 pt-0">
           <Button variant="light" className="fw-bold" onClick={cerrarConfirm} disabled={confirmLoading}>
             Regresar

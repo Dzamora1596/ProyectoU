@@ -1,4 +1,4 @@
-// App.jsx
+//App.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -16,9 +16,16 @@ import Incapacidades from "./pages/planilla/Incapacidades";
 
 function Placeholder({ titulo }) {
   return (
-    <div className="p-3">
-      <h3 style={{ margin: 0 }}>{titulo}</h3>
-      <p className="text-muted mt-2 mb-0">Página en construcción.</p>
+    <div className="container-fluid">
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h4 className="mb-0 fw-bold">{titulo}</h4>
+            <span className="badge bg-marenco-black">En construcción</span>
+          </div>
+          <p className="text-muted mt-2 mb-0">Página en construcción.</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -27,23 +34,19 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Inicio />} />
+          <Route index element={<Navigate to="/inicio" replace />} />
           <Route path="/inicio" element={<Inicio />} />
+
           <Route path="/registro-personal" element={<RegistroPersonal />} />
           <Route path="/usuarios" element={<Usuarios />} />
 
           <Route path="/asistencias/validar" element={<ValidarAsistencias />} />
-          <Route
-            path="/asistencias/registro"
-            element={<Placeholder titulo="Registrar/ajustar asistencias" />}
-          />
+          <Route path="/asistencias/registro" element={<Placeholder titulo="Registrar/ajustar asistencias" />} />
 
-          <Route
-            path="/planilla/calcular-salarios"
-            element={<Placeholder titulo="Calcular salarios" />}
-          />
+          <Route path="/planilla/calcular-salarios" element={<Placeholder titulo="Calcular salarios" />} />
           <Route path="/planilla/horas-extra" element={<HorasExtra />} />
           <Route path="/planilla/deducciones" element={<Placeholder titulo="Deducciones" />} />
           <Route path="/planilla/adelantos" element={<Placeholder titulo="Adelantos" />} />

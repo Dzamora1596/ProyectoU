@@ -1,3 +1,4 @@
+//ProtectedRoute
 import React, { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
@@ -18,24 +19,23 @@ export default function ProtectedRoute() {
   const tieneToken = Boolean(token && String(token).trim().length > 0);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVerifying(false);
-    }, 300);
+    const timer = setTimeout(() => setIsVerifying(false), 250);
     return () => clearTimeout(timer);
   }, []);
 
   if (isVerifying) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-body">
         <div className="text-center">
           <div
-            className="spinner-border"
+            className="spinner-border text-primary"
             role="status"
-            style={{ color: "var(--dm-red)", width: "3rem", height: "3rem" }}
+            style={{ width: "3rem", height: "3rem" }}
           >
             <span className="visually-hidden">Cargando...</span>
           </div>
-          <p className="mt-3 fw-bold text-dark">Decoraciones Marenco</p>
+          <div className="mt-3 fw-bold text-dark">Decoraciones Marenco</div>
+          <div className="text-muted small">Verificando sesión...</div>
         </div>
       </div>
     );
